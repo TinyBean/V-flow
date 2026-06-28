@@ -1,0 +1,29 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# ---- Generated at runtime (auto-created on startup, see vflow/config.py) ----
+.certs/
+.thumbs/
+.meta/
+.remux/
+
+# ---- Local video content (large, private; mounted at runtime, never committed) ----
+video/
+
+# ---- Local agent / tool state (machine-specific, not part of the project) ----
+.claude/
+.impeccable/
+.superpowers/
+docs/superpowers/
+
+# ---- Editors / OS ----
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

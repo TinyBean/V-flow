@@ -1,0 +1,14 @@
+# 视频与运行时缓存(由 compose 挂载,不进镜像/构建上下文)
+video/
+.thumbs/
+.meta/
+
+# Python
+__pycache__/
+*.pyc
+
+# 测试 / 文档 / VCS
+.pytest_cache/
+tests/
+docs/
+.git/

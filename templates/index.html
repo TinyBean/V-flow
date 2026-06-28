@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>V-flow · 本地视频库</title>
+  <style>
+    :root {
+      /* surface — faint warm-neutral dark */
+      --bg:        oklch(0.165 0.006 75);
+      --surface:   oklch(0.205 0.006 75);
+      --surface-2: oklch(0.250 0.007 75);
+      --line:      oklch(0.96 0.004 90 / 0.10);
+      --line-2:    oklch(0.96 0.004 90 / 0.06);
+
+      /* ink — contrast-verified on --bg */
+      --ink:       oklch(0.96 0.004 90);
+      --ink-2:     oklch(0.78 0.006 80);
+      --ink-3:     oklch(0.60 0.006 80);
+      --placeholder: oklch(0.64 0.006 80);
+
+      /* accent — warm gold, state only */
+      --accent:    oklch(0.84 0.13 70);
+      --accent-ink:oklch(0.20 0.02 70);
+      --error:     oklch(0.78 0.15 25);
+
+      --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      --radius: 10px;
+      --radius-sm: 7px;
+      --pad-x: clamp(16px, 4vw, 48px);
+      --content-max: 1680px;
+      --z-sticky: 100;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+    ::selection { background: var(--accent); color: var(--accent-ink); }
+    button { font: inherit; color: inherit; }
+
+    /* ---------- top bar ---------- */
+    .topbar {
+      position: sticky; top: 0; z-index: var(--z-sticky);
+      background: oklch(0.165 0.006 75 / 0.82);
+      backdrop-filter: saturate(140%) blur(14px);
+      -webkit-backdrop-filter: saturate(140%) blur(14px);
+      border-bottom: 1px solid var(--line);
+    }
+    .topbar__row {
+      max-width: var(--content-max); margin: 0 auto;
+      padding: 14px var(--pad-x);
+      display: flex; align-items: center; gap: 20px;
+    }
+    .brand {
+      display: flex; align-items: baseline; gap: 10px;
+      white-space: nowrap; user-select: none;
+    }
+    .brand__mark {
+      font-size: 1rem; font-weight: 600; letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    .brand__mark b { font-weight: 700; }
+    .brand__sub {
+      font-size: 0.72rem; letter-spacing: 0.04em; color: var(--ink-3);
+      text-transform: lowercase;
+    }
+    .brand__sep {
+      width: 1px; height: 14px; background: var(--line);
+      display: inline-block;
+    }
+
+    .search {
+      flex: 1; max-width: 460px; position: relative;
+      display: flex; align-items: center;
+    }
+    .search svg {
+      position: absolute; left: 13px; width: 15px; height: 15px;
+      color: var(--ink-3); pointer-events: none;
+    }
+    .search input {
+      width: 100%; height: 38px;
+      padding: 0 38px 0 36px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--ink); font-size: 0.875rem;
+      transition: border-color .18s ease, background .18s ease;
+    }
+    .search input::placeholder { color: var(--placeholder); }
+    .search input:focus { outline: none; border-color: var(--accent); background: var(--surface-2); }
+    .search input:focus + svg,
+    .search:focus-within svg { color: var(--ink-2); }
+    .search__hint {
+      position: absolute; right: 11px;
+      font-size: 0.7rem; color: var(--ink-3);
+      border: 1px solid var(--line); border-radius: 5px;
+      padding: 1px 6px; line-height: 1.4;
+    }
+
+    .count {
+      margin-left: auto; font-size: 0.8rem; color: var(--ink-2);
+      white-space: nowrap; font-variant-numeric: tabular-nums;
+    }
+
+    /* ---------- breadcrumbs ---------- */
+    .crumbs {
+      max-width: var(--content-max); margin: 0 auto;
+      padding: 16px var(--pad-x) 0;
+      display: flex; flex-wrap: wrap; align-items: center; gap: 2px;
+      font-size: 0.82rem;
+    }
+    .crumbs:empty { display: none; }
+    .crumb {
+      appearance: none; background: none; border: 0;
+      color: var(--ink-2); cursor: pointer;
+      padding: 4px 8px; border-radius: 6px;
+      transition: color .15s ease, background .15s ease;
+      max-width: 38vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .crumb:hover { color: var(--ink); background: var(--surface); }
+    .crumb[aria-current] { color: var(--accent); font-weight: 500; }
+    .crumb__sep { color: var(--ink-3); opacity: .6; padding: 0 1px; }
+
+    /* ---------- main ---------- */
+    .container {
+      max-width: var(--content-max); margin: 0 auto;
+      padding: 20px var(--pad-x) 80px;
+    }
+    .label {
+      font-size: 0.7rem; font-weight: 600; letter-spacing: 0.06em;
+      text-transform: lowercase; color: var(--ink-3);
+      margin: 26px 0 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .label:first-child { margin-top: 6px; }
+    .label__count { color: var(--ink-2); font-weight: 400; letter-spacing: 0; }
+
+    /* ---------- folders ---------- */
+    .folders { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 14px; cursor: pointer;
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: 999px; color: var(--ink); font-size: 0.875rem;
+      transition: border-color .18s ease, background .18s ease, transform .18s ease;
+    }
+    .chip:hover { background: var(--surface-2); border-color: color-mix(in oklch, var(--ink) 25%, transparent); }
+    .chip svg { width: 15px; height: 15px; color: var(--ink-3); transition: color .18s ease; }
+    .chip:hover svg { color: var(--accent); }
+    .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    /* ---------- video grid ---------- */
+    .videos {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+      gap: 22px 18px;
+    }
+    .tile {
+      appearance: none; background: none; border: 0; padding: 0;
+      text-align: left; cursor: pointer; color: inherit;
+      display: flex; flex-direction: column;
+    }
+    .tile:focus-visible { outline: none; }
+    .tile:focus-visible .tile__media { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .tile__media {
+      position: relative; aspect-ratio: 16 / 9;
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: var(--radius); overflow: hidden;
+      transition: border-color .22s ease;
+    }
+    .tile:hover .tile__media { border-color: color-mix(in oklch, var(--ink) 22%, transparent); }
+    .tile__media img {
+      position: absolute; inset: 0; z-index: 1;
+      width: 100%; height: 100%; object-fit: cover; display: block;
+      opacity: 0; transition: opacity .4s ease, filter .22s ease;
+    }
+    .tile__media img.loaded { opacity: 1; }
+    .tile:hover .tile__media img.loaded { filter: brightness(1.06); }
+
+    .tile__monogram {
+      position: absolute; inset: 0; z-index: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 6px;
+      color: var(--ink-3); pointer-events: none;
+    }
+    .tile__monogram .mg { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.02em; color: var(--ink-2); }
+    .tile__monogram .ex { font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; }
+
+    .tile__play {
+      position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity .2s ease; pointer-events: none;
+      background: linear-gradient(to top, oklch(0.1 0 0 / 0.35), oklch(0.1 0 0 / 0));
+    }
+    .tile__play svg {
+      width: 30px; height: 30px; color: var(--ink);
+      filter: drop-shadow(0 1px 6px oklch(0 0 0 / 0.5));
+    }
+    .tile:hover .tile__play { opacity: 1; }
+
+    .tile__meta { padding: 10px 2px 0; }
+    .tile__title {
+      font-size: 0.875rem; font-weight: 500; line-height: 1.35; color: var(--ink);
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      overflow: hidden; text-wrap: balance;
+      transition: color .15s ease;
+    }
+    .tile:hover .tile__title { color: var(--ink); }
+    .tile__sub {
+      margin-top: 4px; font-size: 0.72rem; color: var(--ink-3);
+      font-variant-numeric: tabular-nums; letter-spacing: 0.01em;
+    }
+
+    /* ---------- skeleton ---------- */
+    .skeleton-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+      gap: 22px 18px;
+    }
+    .sk { display: flex; flex-direction: column; }
+    .sk__media {
+      aspect-ratio: 16 / 9; border-radius: var(--radius);
+      background: linear-gradient(100deg, var(--surface) 30%, var(--surface-2) 50%, var(--surface) 70%);
+      background-size: 200% 100%; animation: shimmer 1.4s ease-in-out infinite;
+    }
+    .sk__line { height: 10px; margin-top: 12px; border-radius: 4px; background: var(--surface); }
+    .sk__line.s2 { width: 45%; height: 8px; margin-top: 7px; background: color-mix(in oklch, var(--surface) 70%, transparent); }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+
+    /* ---------- pagination ---------- */
+    .pager {
+      display: flex; align-items: center; justify-content: center; gap: 14px;
+      margin: 40px 0 4px;
+    }
+    .pager__btn {
+      appearance: none; cursor: pointer;
+      background: var(--surface); border: 1px solid var(--line);
+      color: var(--ink); padding: 8px 18px; border-radius: var(--radius-sm);
+      font-size: 0.82rem; transition: background .15s ease, border-color .15s ease;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .pager__btn:hover:not(:disabled) { background: var(--surface-2); border-color: color-mix(in oklch, var(--ink) 22%, transparent); }
+    .pager__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .pager__btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .pager__info { font-size: 0.78rem; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .pager__total { font-size: 0.78rem; color: var(--ink-3); }
+
+    /* ---------- states ---------- */
+    .state { text-align: center; padding: 96px 20px; color: var(--ink-2); }
+    .state svg { width: 40px; height: 40px; color: var(--ink-3); margin-bottom: 18px; }
+    .state__title { font-size: 0.95rem; font-weight: 500; color: var(--ink); margin-bottom: 6px; }
+    .state__sub { font-size: 0.82rem; color: var(--ink-3); }
+    .notice {
+      display: flex; gap: 10px; align-items: flex-start;
+      margin: 20px var(--pad-x) 0; max-width: var(--content-max);
+      margin-left: auto; margin-right: auto;
+      padding: 12px 16px; border: 1px solid color-mix(in oklch, var(--error) 45%, transparent);
+      background: color-mix(in oklch, var(--error) 10%, var(--bg));
+      border-radius: var(--radius); color: var(--error); font-size: 0.85rem;
+    }
+
+    /* ---------- responsive ---------- */
+    @media (max-width: 720px) {
+      .topbar__row { flex-wrap: wrap; gap: 12px; padding: 12px var(--pad-x); }
+      .brand__sub, .brand__sep { display: none; }
+      .search { order: 3; max-width: none; flex-basis: 100%; }
+      .count { font-size: 0.75rem; }
+      .videos, .skeleton-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px 12px; }
+      .tile__title { font-size: 0.82rem; }
+      .search__hint { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+      }
+    }
+
+    /* ---------- global tag bar ---------- */
+    .tagbar {
+      max-width: var(--content-max); margin: 0 auto;
+      padding: 8px var(--pad-x) 0;
+      display: flex; gap: 7px; overflow-x: auto; scrollbar-width: thin;
+    }
+    .tagbar:empty { display: none; }
+    .tagbar::-webkit-scrollbar { height: 5px; }
+    .tagbar::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+    .tagpill {
+      appearance: none; cursor: pointer; white-space: nowrap;
+      padding: 5px 12px; border-radius: 999px;
+      background: var(--surface); border: 1px solid var(--line);
+      color: var(--ink-2); font-size: 0.78rem;
+      display: inline-flex; align-items: center; gap: 6px;
+      transition: background .15s ease, color .15s ease, border-color .15s ease;
+    }
+    .tagpill:hover { background: var(--surface-2); color: var(--ink); }
+    .tagpill[aria-pressed="true"] {
+      background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600;
+    }
+    .tagpill__n { font-size: 0.68rem; opacity: .7; font-variant-numeric: tabular-nums; }
+    .tagpill--all { color: var(--ink-3); }
+
+    /* ---------- per-folder tag filter ---------- */
+    .folderfilter {
+      max-width: var(--content-max); margin: 0 auto;
+      padding: 10px var(--pad-x) 0;
+      display: flex; flex-wrap: wrap; gap: 6px;
+    }
+    .folderfilter:empty { display: none; }
+
+    /* ---------- tile more button ---------- */
+    .tile { position: relative; }
+    .tile__more {
+      position: absolute; top: 8px; right: 8px; z-index: 3;
+      appearance: none; cursor: pointer;
+      width: 30px; height: 30px; border-radius: 8px;
+      background: oklch(0.1 0 0 / 0.55); border: 1px solid var(--line);
+      color: var(--ink); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      display: inline-flex; align-items: center; justify-content: center;
+      opacity: 0; transform: scale(.9); transition: opacity .18s ease, transform .18s ease, background .15s ease;
+    }
+    .tile__more svg { width: 16px; height: 16px; }
+    .tile:hover .tile__more,
+    .tile.is-pressed .tile__more { opacity: 1; transform: none; }
+    .tile__more:hover { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+    /* tile tags strip */
+    .tile__tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .tile__tags .t {
+      font-size: 0.64rem; color: var(--ink-3);
+      border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px;
+    }
+
+    /* tag-view subtitle shows the folder */
+    .tile__folder { font-size: 0.68rem; color: var(--accent); opacity: .85; margin-top: 4px; }
+  </style>
+  <link rel="stylesheet" href="/static/edit.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar__row">
+      <div class="brand">
+        <span class="brand__mark"><b>V</b>-flow</span>
+        <span class="brand__sep"></span>
+        <span class="brand__sub">本地视频库</span>
+      </div>
+      <div class="search">
+        <input type="text" id="search" placeholder="搜索当前文件夹" aria-label="搜索视频" autocomplete="off" />
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <span class="search__hint">/</span>
+      </div>
+      <div class="count" id="stats" aria-live="polite"></div>
+    </div>
+  </header>
+
+  <nav class="crumbs" id="breadcrumbs" aria-label="路径"></nav>
+  <div class="folderfilter" id="folderfilter"></div>
+  <nav class="tagbar" id="tagbar" aria-label="标签"></nav>
+
+  <main class="container" id="main" aria-live="polite">
+    <div class="skeleton-grid" id="skeleton"></div>
+  </main>
+
+  <script src="/static/edit.js"></script>
+  <script>
+    let currentDir = '';
+    let allVideos = [];
+    let currentDirs = [];
+    let filteredVideos = [];
+    let currentPage = 1;
+    const PAGE_SIZE = 60;
+
+    let mode = 'browse';        // 'browse' | 'tag'
+    let activeTag = null;       // 标签视图当前标签
+    let globalTags = [];        // [{name, count}]
+    let folderTagSel = new Set(); // 本文件夹选中的筛选标签
+
+    const ICON = {
+      folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+      play: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.52.85l10.5-6.5a1 1 0 0 0 0-1.7L9.52 4.65A1 1 0 0 0 8 5.5z"/></svg>',
+      prev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 6 9 12 15 18"></polyline></svg>',
+      next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"></polyline></svg>',
+      more: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>',
+      empty: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>'
+    };
+
+    // ---- skeleton ----
+    function renderSkeleton(n) {
+      const el = document.getElementById('skeleton');
+      let html = '';
+      for (let i = 0; i < n; i++) {
+        html += '<div class="sk"><div class="sk__media"></div><div class="sk__line"></div><div class="sk__line s2"></div></div>';
+      }
+      el.innerHTML = html;
+    }
+
+    // ---- 浏览目录 ----
+    async function browse(path) {
+      currentDir = path || '';
+      mode = 'browse'; activeTag = null;
+      folderTagSel = new Set();
+      renderTagBar();
+      const main = document.getElementById('main');
+      main.innerHTML = '<div class="skeleton-grid" id="skeleton"></div>';
+      renderSkeleton(12);
+      try {
+        const res = await fetch('/api/browse?path=' + encodeURIComponent(path));
+        const data = await res.json();
+        if (data.error) {
+          main.innerHTML = `<div class="notice">${escapeHtml(data.error)}</div>`;
+          renderBreadcrumbs(null);
+          renderFolderFilter();
+          return;
+        }
+        renderBreadcrumbs(data.breadcrumbs, data.current);
+        allVideos = data.videos || [];
+        filteredVideos = allVideos;
+        currentDirs = data.dirs || [];
+        currentPage = 1;
+        document.getElementById('search').value = '';
+        renderFolderFilter();
+        renderPage();
+      } catch (e) {
+        main.innerHTML = `<div class="notice">加载失败: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+
+    // ---- 渲染面包屑 ----
+    function renderBreadcrumbs(crumbs) {
+      const el = document.getElementById('breadcrumbs');
+      if (!crumbs || crumbs.length <= 1) { el.innerHTML = ''; return; }
+      let html = '';
+      crumbs.forEach((c, i) => {
+        const isLast = i === crumbs.length - 1;
+        if (i > 0) html += '<span class="crumb__sep">/</span>';
+        html += isLast
+          ? `<button class="crumb" aria-current="page">${escapeHtml(c.name)}</button>`
+          : `<button class="crumb" onclick="browse('${escapeAttr(c.path)}')">${escapeHtml(c.name)}</button>`;
+      });
+      el.innerHTML = html;
+    }
+
+    // ---- 渲染当前页(文件夹全部 + 视频分页) ----
+    function renderPage() {
+      updateStats();
+      const main = document.getElementById('main');
+      const dirs = currentDirs;
+      const videos = filteredVideos;
+
+      if (dirs.length === 0 && videos.length === 0) {
+        main.innerHTML = `<div class="state">${ICON.empty}<div class="state__title">这个文件夹是空的</div><div class="state__sub">没有子文件夹,也没有视频文件</div></div>`;
+        return;
+      }
+
+      let html = '';
+      if (dirs.length > 0) {
+        html += `<div class="label">文件夹<span class="label__count">${dirs.length}</span></div><div class="folders">`;
+        dirs.forEach(d => {
+          html += `<button class="chip" onclick="browse('${escapeAttr(d.path)}')">${ICON.folder}<span>${escapeHtml(d.name)}</span></button>`;
+        });
+        html += '</div>';
+      }
+
+      if (videos.length > 0) {
+        const totalPages = Math.ceil(videos.length / PAGE_SIZE);
+        if (currentPage > totalPages) currentPage = totalPages;
+        if (currentPage < 1) currentPage = 1;
+        const start = (currentPage - 1) * PAGE_SIZE;
+        const pageVideos = videos.slice(start, start + PAGE_SIZE);
+
+        html += `<div class="label">视频<span class="label__count">${videos.length}</span></div><div class="videos">`;
+        pageVideos.forEach(v => { html += tileHTML(v, false); });
+        html += '</div>';
+        html += renderPagination(currentPage, totalPages, videos.length);
+      }
+      main.innerHTML = html;
+      wireTiles();
+    }
+
+    // ---- 单个视频卡片(showFolder: 标签视图下副标题显示所在文件夹)----
+    function tileHTML(v, showFolder) {
+      const sub = `${v.ext.toUpperCase()} · ${formatSize(v.size)}`;
+      const ini = escapeHtml((v.name || '?').trim().charAt(0).toUpperCase());
+      const tags = (!showFolder && v.tags && v.tags.length)
+        ? `<div class="tile__tags">${v.tags.map(t => `<span class="t">${escapeHtml(t)}</span>`).join('')}</div>` : '';
+      const folder = showFolder ? `<div class="tile__folder">${escapeHtml(folderOf(v.path))}</div>` : '';
+      return `<div class="tile" role="button" tabindex="0" data-path="${escapeAttr(v.path)}" data-name="${escapeAttr(v.name)}" title="${escapeHtml(v.name)}">
+        <div class="tile__media">
+          <img src="/api/thumb/${encodeURI(v.path)}" loading="lazy" alt="${escapeHtml(v.name)}" onload="this.classList.add('loaded')" onerror="this.remove()">
+          <div class="tile__monogram"><span class="mg">${ini}</span><span class="ex">${escapeHtml(v.ext)}</span></div>
+          <div class="tile__play">${ICON.play}</div>
+        </div>
+        <button class="tile__more" type="button" aria-label="编辑">${ICON.more}</button>
+        <div class="tile__meta">
+          <div class="tile__title">${escapeHtml(v.name)}</div>
+          <div class="tile__sub">${escapeHtml(sub)}</div>
+          ${tags}${folder}
+        </div>
+      </div>`;
+    }
+
+    // 给当前页所有卡片绑定:点击播放、⋯ 编辑、键盘、移动端长按
+    function wireTiles() {
+      document.querySelectorAll('.tile').forEach(tile => {
+        const path = tile.getAttribute('data-path');
+        const name = tile.getAttribute('data-name');
+        tile.addEventListener('click', () => { if (!tile.dataset.longpress) play(path, name); });
+        tile.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); play(path, name); }
+        });
+        const more = tile.querySelector('.tile__more');
+        more.addEventListener('click', e => { e.stopPropagation(); openEdit(path, name); });
+        wireLongPress(tile, () => openEdit(path, name));
+      });
+    }
+
+    function wireLongPress(el, fn) {
+      let timer = null;
+      el.addEventListener('touchstart', () => {
+        timer = setTimeout(() => {
+          timer = null;
+          el.dataset.longpress = '1';
+          el.classList.add('is-pressed');
+          fn();
+          setTimeout(() => { delete el.dataset.longpress; el.classList.remove('is-pressed'); }, 500);
+        }, 480);
+      }, { passive: true });
+      const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+      el.addEventListener('touchmove', cancel, { passive: true });
+      el.addEventListener('touchend', cancel);
+      el.addEventListener('touchcancel', cancel);
+    }
+
+    // ---- 分页控件 ----
+    function renderPagination(page, totalPages, total) {
+      if (totalPages <= 1) {
+        return `<div class="pager"><span class="pager__total">共 ${total} 个视频</span></div>`;
+      }
+      const prev = page > 1
+        ? `<button class="pager__btn" onclick="goToPage(${page - 1})">${ICON.prev}<span>上一页</span></button>`
+        : `<button class="pager__btn" disabled>${ICON.prev}<span>上一页</span></button>`;
+      const next = page < totalPages
+        ? `<button class="pager__btn" onclick="goToPage(${page + 1})"><span>下一页</span>${ICON.next}</button>`
+        : `<button class="pager__btn" disabled><span>下一页</span>${ICON.next}</button>`;
+      return `<div class="pager">${prev}
+        <span class="pager__info">${page} / ${totalPages}</span>
+        ${next}</div>`;
+    }
+
+    function goToPage(page) {
+      currentPage = page;
+      renderPage();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function updateStats() {
+      const total = allVideos.length;
+      const shown = filteredVideos.length;
+      document.getElementById('stats').textContent =
+        (shown === total) ? `${total} 个视频` : `${shown} / ${total}`;
+    }
+
+    // ---- 播放视频 ----
+    function play(path, name) {
+      window.open('/play/' + encodeURI(path), '_blank');
+    }
+
+    // ---- 全局标签栏 ----
+    async function loadTagBar() {
+      try {
+        const res = await fetch('/api/tags');
+        globalTags = await res.json();
+        if (!Array.isArray(globalTags)) globalTags = [];
+      } catch (e) { globalTags = []; }
+      renderTagBar();
+    }
+    function renderTagBar() {
+      const el = document.getElementById('tagbar');
+      if (!globalTags.length) { el.innerHTML = ''; return; }
+      const allOn = (mode !== 'tag');
+      let html = `<button class="tagpill tagpill--all" type="button" aria-pressed="${allOn}">全部</button>`;
+      globalTags.forEach(t => {
+        const on = (mode === 'tag' && activeTag === t.name);
+        html += `<button class="tagpill" type="button" data-tag="${escapeAttr(t.name)}" aria-pressed="${on}">${escapeHtml(t.name)}<span class="tagpill__n">${t.count}</span></button>`;
+      });
+      el.innerHTML = html;
+      el.querySelector('.tagpill--all').addEventListener('click', exitTagView);
+      el.querySelectorAll('.tagpill[data-tag]').forEach(b => {
+        b.addEventListener('click', () => toggleTagView(b.getAttribute('data-tag')));
+      });
+    }
+    function toggleTagView(name) {
+      if (mode === 'tag' && activeTag === name) exitTagView();
+      else enterTagView(name);
+    }
+    async function enterTagView(name) {
+      mode = 'tag'; activeTag = name;
+      currentDirs = []; folderTagSel = new Set();
+      renderTagBar();
+      renderBreadcrumbs(null);
+      renderFolderFilter();
+      document.getElementById('search').value = '';
+      const main = document.getElementById('main');
+      main.innerHTML = '<div class="skeleton-grid" id="skeleton"></div>';
+      renderSkeleton(8);
+      try {
+        const res = await fetch('/api/videos?tag=' + encodeURIComponent(name));
+        const data = await res.json();
+        allVideos = data.videos || [];
+        filteredVideos = allVideos;
+        currentPage = 1;
+        renderTagView();
+      } catch (e) {
+        main.innerHTML = `<div class="notice">加载失败: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+    function exitTagView() {
+      if (mode !== 'tag') return;
+      browse(currentDir);
+    }
+    function renderTagView() {
+      updateStats();
+      const main = document.getElementById('main');
+      const videos = filteredVideos;
+      if (!videos.length) {
+        main.innerHTML = `<div class="state">${ICON.empty}<div class="state__title">没有「${escapeHtml(activeTag)}」的视频</div><div class="state__sub">给视频打上这个标签后就会出现在这里</div></div>`;
+        return;
+      }
+      let html = `<div class="label">标签 · ${escapeHtml(activeTag)}<span class="label__count">${videos.length}</span></div><div class="videos">`;
+      videos.forEach(v => { html += tileHTML(v, true); });
+      html += '</div>';
+      main.innerHTML = html;
+      wireTiles();
+    }
+
+    // ---- 本文件夹标签筛选(多选)----
+    function renderFolderFilter() {
+      const el = document.getElementById('folderfilter');
+      if (mode === 'tag') { el.innerHTML = ''; return; }
+      const set = new Set();
+      allVideos.forEach(v => (v.tags || []).forEach(t => set.add(t)));
+      const tags = [...set].sort((a, b) => a.localeCompare(b));
+      if (!tags.length) { el.innerHTML = ''; return; }
+      el.innerHTML = tags.map(t => {
+        const on = folderTagSel.has(t);
+        return `<button class="tagpill" type="button" data-tag="${escapeAttr(t)}" aria-pressed="${on}">${escapeHtml(t)}</button>`;
+      }).join('');
+      el.querySelectorAll('.tagpill').forEach(b => {
+        b.addEventListener('click', () => {
+          const t = b.getAttribute('data-tag');
+          if (folderTagSel.has(t)) folderTagSel.delete(t); else folderTagSel.add(t);
+          renderFolderFilter();
+          applyFilters();
+        });
+      });
+    }
+
+    // 搜索 + 文件夹标签筛选组合
+    function applyFilters() {
+      const q = (document.getElementById('search').value || '').trim().toLowerCase();
+      let list = allVideos;
+      if (q) list = list.filter(v => v.name.toLowerCase().includes(q));
+      if (folderTagSel.size) {
+        list = list.filter(v => {
+          const vt = new Set(v.tags || []);
+          for (const t of folderTagSel) if (!vt.has(t)) return false;
+          return true;
+        });
+      }
+      filteredVideos = list;
+      currentPage = 1;
+      if (mode === 'tag') renderTagView(); else renderPage();
+    }
+
+    // ---- 编辑(标签 / 改名 / 移动)----
+    function openEdit(path, name) {
+      VflowEdit.open({
+        path, name,
+        onRenamed: () => afterEdit(),
+        onMoved: () => afterEdit(),
+        onChanged: () => afterEdit()
+      });
+    }
+    function afterEdit() {
+      loadTagBar();
+      if (mode === 'tag') enterTagView(activeTag);
+      else browse(currentDir);
+    }
+
+    // ---- 搜索 ----
+    const searchEl = document.getElementById('search');
+    searchEl.addEventListener('input', applyFilters);
+    searchEl.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { e.target.blur(); }
+    });
+    // "/" 聚焦搜索
+    document.addEventListener('keydown', e => {
+      if (e.key === '/' && document.activeElement !== searchEl &&
+          !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) {
+        e.preventDefault();
+        searchEl.focus();
+      }
+    });
+
+    // ---- 工具函数 ----
+    function formatSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+      if (bytes < 1073741824) return (bytes/1048576).toFixed(1) + ' MB';
+      return (bytes/1073741824).toFixed(2) + ' GB';
+    }
+    function folderOf(rel) {
+      rel = String(rel || '');
+      const i = rel.lastIndexOf('/');
+      return i < 0 ? '根目录' : rel.slice(0, i);
+    }
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function escapeAttr(s) {
+      return String(s).replace(/'/g, "\\'").replace(/\\/g, '\\\\');
+    }
+
+    // ---- 启动 ----
+    browse('');
+    loadTagBar();
+  </script>
+</body>
+</html>

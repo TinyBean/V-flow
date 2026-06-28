@@ -1,0 +1,182 @@
+/* 共享编辑组件 VflowEdit —— 自带设计令牌,两个页面行为一致。
+   挂在 <body> 末尾的 .vf-edit 覆盖层,不依赖页面 :root 令牌。 */
+.vf-edit, .vf-edit * { margin: 0; padding: 0; box-sizing: border-box; }
+
+.vf-edit {
+  --ve-bg: oklch(0.165 0.006 75);
+  --ve-surface: oklch(0.205 0.006 75);
+  --ve-surface-2: oklch(0.250 0.007 75);
+  --ve-line: oklch(0.96 0.004 90 / 0.12);
+  --ve-ink: oklch(0.96 0.004 90);
+  --ve-ink-2: oklch(0.78 0.006 80);
+  --ve-ink-3: oklch(0.60 0.006 80);
+  --ve-accent: oklch(0.84 0.13 70);
+  --ve-accent-ink: oklch(0.20 0.02 70);
+  --ve-error: oklch(0.78 0.15 25);
+  --ve-radius: 10px;
+  --ve-radius-sm: 7px;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--ve-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- overlay ---------- */
+.vf-edit {
+  position: fixed; inset: 0; z-index: 10000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  background: oklch(0.08 0 0 / 0.6);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  animation: vf-fade .18s ease;
+}
+@keyframes vf-fade { from { opacity: 0; } }
+
+.vf-edit__panel {
+  width: min(540px, 96vw); max-height: 88vh; overflow: auto;
+  background: var(--ve-bg);
+  border: 1px solid var(--ve-line); border-radius: 16px;
+  box-shadow: 0 24px 70px oklch(0 0 0 / 0.55);
+  animation: vf-pop .2s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes vf-pop { from { transform: translateY(8px) scale(.98); opacity: 0; } }
+
+.vf-edit__head {
+  position: sticky; top: 0; z-index: 2;
+  display: flex; align-items: center; gap: 12px;
+  padding: 18px 20px 14px;
+  background: var(--ve-bg);
+  border-bottom: 1px solid var(--ve-line);
+}
+.vf-edit__title { flex: 1; font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
+.vf-edit__sub { font-size: 0.72rem; color: var(--ve-ink-3); font-weight: 400; margin-left: 8px; }
+
+.vf-edit__x, .vf-edit__back {
+  appearance: none; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 8px;
+  background: var(--ve-surface); border: 1px solid var(--ve-line);
+  color: var(--ve-ink-2); transition: background .15s ease, color .15s ease;
+}
+.vf-edit__x:hover, .vf-edit__back:hover { background: var(--ve-surface-2); color: var(--ve-ink); }
+.vf-edit__x svg, .vf-edit__back svg { width: 15px; height: 15px; }
+
+/* ---------- sections ---------- */
+.vf-edit__body { padding: 6px 20px 20px; }
+.vf-edit__sec { padding: 16px 0; border-bottom: 1px solid var(--ve-line); }
+.vf-edit__sec:last-child { border-bottom: 0; }
+.vf-edit__label {
+  font-size: 0.7rem; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: lowercase; color: var(--ve-ink-3);
+  margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+}
+.vf-edit__label .hint { font-weight: 400; letter-spacing: 0; color: var(--ve-ink-3); opacity: .7; }
+
+/* ---------- inputs ---------- */
+.vf-edit__field { display: flex; gap: 8px; }
+.vf-edit__input {
+  flex: 1; min-width: 0; height: 38px;
+  padding: 0 12px;
+  background: var(--ve-surface); border: 1px solid var(--ve-line);
+  border-radius: var(--ve-radius-sm); color: var(--ve-ink); font-size: 0.875rem;
+  transition: border-color .15s ease, background .15s ease;
+}
+.vf-edit__input:focus { outline: none; border-color: var(--ve-accent); background: var(--ve-surface-2); }
+.vf-edit__input::placeholder { color: var(--ve-ink-3); }
+
+.vf-edit__btn {
+  appearance: none; cursor: pointer;
+  height: 38px; padding: 0 14px; border-radius: var(--ve-radius-sm);
+  background: var(--ve-surface); border: 1px solid var(--ve-line);
+  color: var(--ve-ink); font-size: 0.82rem; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.vf-edit__btn:hover { background: var(--ve-surface-2); }
+.vf-edit__btn:disabled { opacity: .4; cursor: not-allowed; }
+.vf-edit__btn--primary { background: var(--ve-accent); border-color: var(--ve-accent); color: var(--ve-accent-ink); font-weight: 600; }
+.vf-edit__btn--primary:hover { background: color-mix(in oklch, var(--ve-accent) 88%, white); }
+.vf-edit__btn--block { width: 100%; justify-content: center; }
+.vf-edit__btn svg { width: 15px; height: 15px; }
+
+/* ---------- tag chips ---------- */
+.vf-edit__chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
+.vf-edit__chips:empty { display: none; }
+.vf-edit__chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 6px 5px 11px;
+  background: var(--ve-surface-2); border: 1px solid var(--ve-line);
+  border-radius: 999px; font-size: 0.8rem; color: var(--ve-ink);
+}
+.vf-edit__chip button {
+  appearance: none; cursor: pointer; border: 0; background: none;
+  width: 17px; height: 17px; border-radius: 50%;
+  color: var(--ve-ink-3); font-size: 0.9rem; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: color .15s ease, background .15s ease;
+}
+.vf-edit__chip button:hover { color: var(--ve-error); background: oklch(0.78 0.15 25 / 0.16); }
+
+/* ---------- autocomplete ---------- */
+.vf-edit__ac { position: relative; }
+.vf-edit__ac-list {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 3;
+  background: var(--ve-surface); border: 1px solid var(--ve-line);
+  border-radius: var(--ve-radius-sm); overflow: hidden;
+  box-shadow: 0 10px 30px oklch(0 0 0 / 0.4);
+  max-height: 180px; overflow-y: auto;
+}
+.vf-edit__ac-list:empty { display: none; }
+.vf-edit__ac-item {
+  display: block; width: 100%; text-align: left;
+  appearance: none; cursor: pointer; border: 0; background: none;
+  padding: 8px 12px; color: var(--ve-ink-2); font-size: 0.82rem;
+}
+.vf-edit__ac-item:hover, .vf-edit__ac-item.is-active { background: var(--ve-surface-2); color: var(--ve-ink); }
+
+/* ---------- move view ---------- */
+.vf-edit__crumbs {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  font-size: 0.8rem; color: var(--ve-ink-2); margin-bottom: 12px;
+}
+.vf-edit__crumb {
+  appearance: none; cursor: pointer; border: 0; background: none;
+  color: var(--ve-ink-2); padding: 3px 7px; border-radius: 6px; font-size: 0.8rem;
+}
+.vf-edit__crumb:hover { background: var(--ve-surface); color: var(--ve-ink); }
+.vf-edit__crumb[aria-current] { color: var(--ve-accent); }
+.vf-edit__sep { color: var(--ve-ink-3); opacity: .5; }
+
+.vf-edit__folders { display: flex; flex-direction: column; gap: 4px; max-height: 38vh; overflow-y: auto; margin-bottom: 14px; }
+.vf-edit__folder {
+  appearance: none; cursor: pointer; width: 100%; text-align: left;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: var(--ve-radius-sm);
+  background: var(--ve-surface); border: 1px solid var(--ve-line);
+  color: var(--ve-ink); font-size: 0.86rem;
+  transition: background .15s ease, border-color .15s ease;
+}
+.vf-edit__folder:hover { background: var(--ve-surface-2); border-color: color-mix(in oklch, var(--ve-accent) 35%, transparent); }
+.vf-edit__folder svg { width: 16px; height: 16px; color: var(--ve-accent); flex-shrink: 0; }
+.vf-edit__empty { padding: 22px; text-align: center; color: var(--ve-ink-3); font-size: 0.82rem; }
+
+.vf-edit__newdir { display: flex; gap: 8px; margin-bottom: 14px; }
+
+/* ---------- toast ---------- */
+.vf-edit__toast {
+  position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+  z-index: 10001;
+  background: color-mix(in oklch, var(--ve-error) 16%, var(--ve-bg));
+  border: 1px solid color-mix(in oklch, var(--ve-error) 50%, transparent);
+  color: var(--ve-error); font-size: 0.84rem;
+  padding: 10px 16px; border-radius: 999px;
+  box-shadow: 0 10px 30px oklch(0 0 0 / 0.4);
+  animation: vf-fade .15s ease;
+}
+
+@media (max-width: 600px) {
+  .vf-edit { padding: 0; align-items: flex-end; }
+  .vf-edit__panel { width: 100%; max-height: 94vh; border-radius: 16px 16px 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vf-edit, .vf-edit * { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+}

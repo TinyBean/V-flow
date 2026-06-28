@@ -1,0 +1,24 @@
+# V-flow 一键部署
+# 用法:把下面的 D:/Videos 改成你自己的视频文件夹,然后:
+#   docker compose up -d --build
+services:
+  vflow:
+    build: .
+    image: vflow
+    container_name: vflow
+    ports:
+      - "5000:5000"
+    volumes:
+      # —— 外部视频文件夹 → 容器 /video ——
+      - type: bind
+        source: D:/Videos          # 改成你的视频文件夹
+        target: /app/video
+        # read_only: true          # 想保护库不被改名/移动时取消注释
+      # —— 缓存持久化(缩略图 / 标签库)——
+      - vflow-thumbs:/app/.thumbs
+      - vflow-meta:/app/.meta
+    restart: unless-stopped
+
+volumes:
+  vflow-thumbs:
+  vflow-meta:
