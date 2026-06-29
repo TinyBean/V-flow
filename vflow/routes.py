@@ -4,7 +4,7 @@ import shutil
 
 from flask import (
     Blueprint, render_template, send_file, jsonify, request,
-    Response, abort
+    Response, abort, session, redirect, url_for
 )
 
 from . import config, meta
@@ -18,6 +18,47 @@ bp = Blueprint('vflow', __name__)
 def _norm(p):
     """把相对路径规范成正斜杠字符串(与 scan_dir 输出的 rel 一致)。"""
     return (p or '').replace('\\', '/').strip()
+
+
+# ---------- 登录门槛 ----------
+# ponytail: blueprint 级 before_request —— 一次守卫盖住所有页面与 /api/*,
+# 唯一豁免登录页本身。static 由 app 直出,不在 blueprint 范围,不拦截(无敏感内容)。
+_PUBLIC = {'vflow.login'}
+
+
+@bp.before_request
+def _require_login():
+    if session.get('user'):
+        return None
+    if request.endpoint in _PUBLIC:
+        return None
+    return redirect(url_for('vflow.login', next=request.full_path))
+
+
+def _safe_next(target):
+    """只允许站内相对跳转,防开放重定向。"""
+    if target and target.startswith('/') and not target.startswith('//'):
+        return target
+    return url_for('vflow.index')
+
+
+@bp.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        user = (request.form.get('username') or '').strip()
+        pwd = request.form.get('password') or ''
+        if user == config.AUTH_USER and pwd == config.AUTH_PASS:
+            session.permanent = True              # 浏览器重启后仍保持登录(默认 31 天)
+            session['user'] = user
+            return redirect(_safe_next(request.args.get('next')))
+        return render_template('login.html', error='用户名或密码错误'), 401
+    return render_template('login.html', error=None)
+
+
+@bp.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('vflow.login'))
 
 
 @bp.route('/')

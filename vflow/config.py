@@ -22,6 +22,12 @@ META_DB = META_DIR / 'meta.db'
 
 WARM_BATCH = 60
 
+# ---------- 登录(本地软门槛;凭据写死)----------
+# ponytail: 写死凭据 + 固定 SECRET_KEY —— 本地单用户、够用;要多用户/改密/注销再上数据库与口令哈希
+AUTH_USER = 'admin'
+AUTH_PASS = 'vflow123'
+SECRET_KEY = 'vflow-local-secret-please-change'   # 仅用于 session 签名
+
 
 def set_video_root(path: str):
     """设置并校验视频根目录。"""

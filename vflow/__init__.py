@@ -8,7 +8,8 @@ def create_app() -> Flask:
     root = Path(__file__).resolve().parent.parent
     app = Flask(__name__, template_folder=str(root / 'templates'),
                 static_folder=str(root / 'static'))
-    from . import meta
+    from . import config, meta
+    app.secret_key = config.SECRET_KEY           # 登录 session 签名
     meta.init_db()
     from .routes import bp
     app.register_blueprint(bp)
