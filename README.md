@@ -25,14 +25,21 @@ python app.py --dir "D:\Videos"
        target: /app/video
    ```
 
-2. 构建并后台启动:
+2. 先构建一次基础镜像(环境层:Python + FFmpeg + 依赖),之后改代码不用重跑:
+
+   ```bash
+   docker build -t vflow-base -f Dockerfile.base .
+   ```
+
+3. 构建应用镜像并后台启动(基于 `vflow-base`,只叠加代码,秒级):
 
    ```bash
    docker compose up -d --build
    ```
 
-3. 浏览器打开 `http://localhost:5000`。
+4. 浏览器打开 `http://localhost:5000`。
 
+- 之后改了应用代码,只需重复第 3 步;仅当 `requirements.txt` 或 FFmpeg 等环境变化时才需要重跑第 2 步。
 - 缩略图 / 转封装缓存 / 标签库持久化到命名卷,容器重建不丢失。
 - 只读保护视频库(禁用改名/移动):在上面的 bind 段加 `read_only: true`。
 - 换端口:改 `ports` 左侧,如 `"8080:5000"`。
@@ -41,6 +48,7 @@ python app.py --dir "D:\Videos"
 不用 compose 也可以:
 
 ```bash
+docker build -t vflow-base -f Dockerfile.base .
 docker build -t vflow .
 docker run -d -p 5000:5000 -v D:/Videos:/app/video vflow
 ```

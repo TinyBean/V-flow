@@ -1,18 +1,10 @@
-# V-flow 容器镜像
-FROM python:3.12-slim
-
-# ffmpeg / ffprobe:缩略图 + .ts 无损转封装所需
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+# V-flow 应用镜像:在 vflow-base 之上只叠加应用代码,无 apt、无 pip,构建秒级。
+# 前置(只需一次): docker build -t vflow-base -f Dockerfile.base .
+FROM vflow-base:latest
 
 WORKDIR /app
 
-# 先装依赖(命中层缓存,代码改动不重装)
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# 应用代码(视频与缓存目录由 compose 挂载,不进镜像)
+# 仅应用代码(视频与缓存目录由 compose 挂载,不进镜像)
 COPY app.py ./
 COPY vflow/ ./vflow/
 COPY templates/ ./templates/

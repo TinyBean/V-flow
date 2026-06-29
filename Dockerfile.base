@@ -1,0 +1,18 @@
+# V-flow 基础镜像:Python + ffmpeg + Python 依赖。
+# 这是「环境层」——python 基础镜像、apt 装 ffmpeg、pip 装依赖都集中在这里。
+# 这些东西很少变,构建一次后反复复用,改应用代码时不再触发。
+#
+# 构建(仅当环境变化时才需要重跑):
+#   docker build -t vflow-base -f Dockerfile.base .
+FROM python:3.12-slim
+
+# ffmpeg / ffprobe:缩略图 + 无损转封装所需
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# 装依赖:只在 requirements.txt 变化时才重建本镜像(把 requirements.txt 单独前置,命中缓存)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt

@@ -1,6 +1,9 @@
 # V-flow 一键部署
 # 用法:把下面的 D:/Videos 改成你自己的视频文件夹,然后:
-#   docker compose up -d --build
+#   1) 首次(或环境变化时)构建基础镜像一次:
+#        docker build -t vflow-base -f Dockerfile.base .
+#   2) 之后每次只需:
+#        docker compose up -d --build      # 应用镜像基于 vflow-base,秒级构建
 services:
   vflow:
     build: .
