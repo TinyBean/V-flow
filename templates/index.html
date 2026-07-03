@@ -702,7 +702,8 @@
         path, name,
         onRenamed: () => afterEdit(),
         onMoved: () => afterEdit(),
-        onChanged: () => afterEdit()
+        onChanged: () => afterEdit(),
+        onDelete: () => afterEdit()
       });
     }
     function afterEdit() {

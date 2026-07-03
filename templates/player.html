@@ -226,7 +226,9 @@
         onRenamed: np => { location.href = '/play/' + encodeURI(np); },
         onMoved: np => { location.href = '/play/' + encodeURI(np); },
         // 标签变更原地更新
-        onChanged: renderTags
+        onChanged: renderTags,
+        // 视频已删 -> 关闭此标签页(由 window.open 打开,可关闭);关不掉则回首页
+        onDelete: () => { window.close(); location.href = '/'; }
       });
     });
     loadMeta();

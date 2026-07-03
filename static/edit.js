@@ -13,7 +13,8 @@
     close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>',
     back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 6 9 12 15 18"></polyline></svg>',
     folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
-    move: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l-3 3 3 3"/><path d="M9 5l3-3 3 3"/><path d="M15 19l-3 3-3-3"/><path d="M19 9l3 3-3 3"/><path d="M2 12h20"/><path d="M12 2v20"/></svg>'
+    move: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l-3 3 3 3"/><path d="M9 5l3-3 3 3"/><path d="M15 19l-3 3-3-3"/><path d="M19 9l3 3-3 3"/><path d="M2 12h20"/><path d="M12 2v20"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>'
   };
 
   function toast(msg, kind) {
@@ -39,7 +40,7 @@
   function open(opts) {
     opts = opts || {};
     var path = opts.path, name = opts.name;
-    var onRenamed = opts.onRenamed, onMoved = opts.onMoved, onChanged = opts.onChanged;
+    var onRenamed = opts.onRenamed, onMoved = opts.onMoved, onChanged = opts.onChanged, onDelete = opts.onDelete;
     var tags = [], allTagNames = [];
 
     var ov = document.createElement('div');
@@ -85,6 +86,9 @@
               '<div class="vf-edit__label">位置</div>' +
               '<button class="vf-edit__btn vf-edit__btn--block" id="vf-move">' + ICON.move + '<span>移动到…</span></button>' +
             '</div>' +
+            '<div class="vf-edit__sec">' +
+              '<button class="vf-edit__btn vf-edit__btn--block vf-edit__btn--danger" id="vf-del">' + ICON.trash + '<span>删除视频</span></button>' +
+            '</div>' +
           '</div>' +
         '</div>';
 
@@ -94,6 +98,7 @@
         if (e.key === 'Enter') { e.preventDefault(); saveName(); }
       });
       ov.querySelector('#vf-move').onclick = renderMove;
+      ov.querySelector('#vf-del').onclick = doDelete;
       wireTagInput();
       load();
     }
@@ -178,6 +183,16 @@
       tags = list.slice();
       renderChips();
       if (onChanged) onChanged(tags.slice());
+    }
+
+    // ---- 删除 ----
+    async function doDelete() {
+      if (!window.confirm('确定删除「' + name + '」?此操作不可恢复。')) return;
+      var r = await post('/api/delete', { path: path });
+      if (!r.ok) { toast((r.data && r.data.error) || '删除失败'); return; }
+      toast('已删除', 'ok');
+      close();
+      if (onDelete) onDelete();
     }
 
     // ---------- 移动视图(内嵌文件夹浏览器)----------

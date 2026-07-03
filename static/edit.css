@@ -96,6 +96,8 @@
 .vf-edit__btn:disabled { opacity: .4; cursor: not-allowed; }
 .vf-edit__btn--primary { background: var(--ve-accent); border-color: var(--ve-accent); color: var(--ve-accent-ink); font-weight: 600; }
 .vf-edit__btn--primary:hover { background: color-mix(in oklch, var(--ve-accent) 88%, white); }
+.vf-edit__btn--danger { background: transparent; border-color: color-mix(in oklch, var(--ve-error) 45%, transparent); color: var(--ve-error); }
+.vf-edit__btn--danger:hover { background: color-mix(in oklch, var(--ve-error) 14%, var(--ve-bg)); border-color: var(--ve-error); }
 .vf-edit__btn--block { width: 100%; justify-content: center; }
 .vf-edit__btn svg { width: 15px; height: 15px; }
 

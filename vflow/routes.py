@@ -233,3 +233,20 @@ def api_mkdir():
     except OSError:
         return jsonify({'error': '新建文件夹失败'}), 500
     return jsonify({'ok': True, 'path': str(target.relative_to(config.VIDEO_ROOT)).replace('\\', '/')})
+
+
+@bp.route('/api/delete', methods=['POST'])
+def api_delete():
+    """删除视频:文件 + 缩略图 + 标签行,一处不留。"""
+    data = request.get_json(silent=True) or {}
+    rel = _norm(data.get('path'))
+    src = safe_resolve(rel)
+    if not src.is_file():
+        abort(404)
+    try:
+        src.unlink()
+    except OSError:
+        return jsonify({'error': '删除失败:文件可能被占用(关闭播放该视频的标签页后重试)'}), 500
+    get_thumb_path(src).unlink(missing_ok=True)
+    meta.prune_paths([rel])
+    return jsonify({'ok': True})
