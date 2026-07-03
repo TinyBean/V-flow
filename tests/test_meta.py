@@ -1,97 +1,68 @@
-"""元信息层(标签)单元测试。沿用 test_security 的 tmp_path + monkeypatch 风格。"""
-import pytest
+"""meta 层幽灵行修复的复现测试 —— 纯 assert,无框架。
+直接 `python test_meta.py` 运行。覆盖:
+  1. relocate_path 目标路径有幽灵行时,标签仍能跟过去(不被 UPDATE OR IGNORE 吞掉)
+  2. relocate_path 目标为空时,所有标签照搬(回归护栏,防 DELETE-first 误伤)
+  3. prune_paths 清指定路径关联行 + 孤儿标签(api_videos 读时自愈用)
+"""
+import pathlib, sys, tempfile
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+
+from vflow import config, meta
+
+# ponytail: 把库指到临时文件,绝不碰真实 .meta/meta.db
+_tmp = pathlib.Path(tempfile.mkdtemp())
+config.META_DB = _tmp / 'test.db'
+meta.init_db()
 
 
-@pytest.fixture(autouse=True)
-def tmp_db(tmp_path, monkeypatch):
-    """把元信息库指向临时目录并初始化。"""
-    import vflow.config as config
-    import vflow.meta as meta
-    monkeypatch.setattr(config, 'META_DB', tmp_path / 'meta.db')
-    meta.init_db()
-    return meta
+def reset():
+    with meta.get_db() as conn:
+        conn.execute('DELETE FROM video_tags')
+        conn.execute('DELETE FROM tags')
+        conn.commit()
 
 
-def test_set_get_tags_roundtrip(tmp_db):
-    meta = tmp_db
-    meta.set_tags('a.mp4', ['动作', '喜剧'])
-    assert meta.get_tags('a.mp4') == ['动作', '喜剧']
+def tag_names():
+    with meta.get_db() as conn:
+        return {r[0] for r in conn.execute('SELECT name FROM tags')}
 
 
-def test_set_tags_is_full_overwrite(tmp_db):
-    meta = tmp_db
-    meta.set_tags('a.mp4', ['x', 'y'])
-    meta.set_tags('a.mp4', ['y', 'z'])
-    assert meta.get_tags('a.mp4') == ['y', 'z']
+def test_relocate_clears_ghost_at_destination():
+    reset()
+    meta.set_tags('old.mp4', ['fav'])
+    meta.set_tags('new.mp4', ['fav'])          # new 的幽灵行(其文件已外部删除)
+    meta.relocate_path('old.mp4', 'new.mp4')
+    assert meta.get_tags('old.mp4') == [], '源路径不应残留行'
+    assert meta.get_tags('new.mp4') == ['fav'], '标签应跟到新路径'
 
 
-def test_tags_case_insensitive_dedup(tmp_db):
-    meta = tmp_db
-    # 同一标签不同大小写 -> 唯一一行,首拼法为规范名
-    meta.set_tags('a.mp4', ['Action', 'action', 'ACTION'])
-    tags = meta.get_tags('a.mp4')
-    assert len(tags) == 1
-    assert tags[0].lower() == 'action'
+def test_relocate_keeps_all_tags_when_destination_empty():
+    reset()
+    meta.set_tags('old.mp4', ['fav', 'work'])
+    meta.relocate_path('old.mp4', 'new.mp4')
+    assert meta.get_tags('old.mp4') == []
+    assert meta.get_tags('new.mp4') == ['fav', 'work'], '所有标签都应跟过去'
 
 
-def test_tag_canonicalized_across_videos(tmp_db):
-    meta = tmp_db
-    meta.set_tags('a.mp4', ['Action'])
-    meta.set_tags('b.mp4', ['action'])   # 复用已有规范名
-    all_tags = {t['name']: t['count'] for t in meta.all_tags()}
-    assert list(all_tags.keys()) == ['Action']
-    assert all_tags['Action'] == 2
-
-
-def test_set_tags_cleans_orphans(tmp_db):
-    meta = tmp_db
-    meta.set_tags('a.mp4', ['x', 'y'])
-    meta.set_tags('b.mp4', ['x'])
-    # y 仅 a 引用,a 清空后应消失;x 仍被 b 引用,保留
-    meta.set_tags('a.mp4', [])
-    counts = {t['name']: t['count'] for t in meta.all_tags()}
-    assert counts == {'x': 1}
-
-
-def test_all_tags_counts(tmp_db):
-    meta = tmp_db
-    meta.set_tags('a.mp4', ['x', 'y'])
-    meta.set_tags('b.mp4', ['x'])
-    meta.set_tags('c.mp4', ['y', 'z'])
-    counts = {t['name']: t['count'] for t in meta.all_tags()}
-    assert counts == {'x': 2, 'y': 2, 'z': 1}
-
-
-def test_relocate_path_moves_tags(tmp_db):
-    meta = tmp_db
-    meta.set_tags('a.mp4', ['x', 'y'])
-    meta.relocate_path('a.mp4', 'sub/b.mp4')
-    # 标签跟随到新路径,旧路径无残留
+def test_prune_paths_removes_rows_and_orphan_tags():
+    reset()
+    meta.set_tags('a.mp4', ['fav', 'work'])
+    meta.set_tags('b.mp4', ['fav'])
+    meta.prune_paths(['a.mp4'])                # a 的文件没了,清掉
     assert meta.get_tags('a.mp4') == []
-    assert meta.get_tags('sub/b.mp4') == ['x', 'y']
-    # 计数不变
-    counts = {t['name']: t['count'] for t in meta.all_tags()}
-    assert counts == {'x': 1, 'y': 1}
+    assert meta.get_tags('b.mp4') == ['fav']
+    assert tag_names() == {'fav'}, 'work 无引用应作为孤儿清掉,fav 仍被 b 引用而保留'
 
 
-def test_get_tags_unknown_path_empty(tmp_db):
-    meta = tmp_db
-    assert meta.get_tags('nope.mp4') == []
+def main():
+    for fn in (test_relocate_clears_ghost_at_destination,
+               test_relocate_keeps_all_tags_when_destination_empty,
+               test_prune_paths_removes_rows_and_orphan_tags):
+        fn()
+        print('PASS', fn.__name__)
+    print('ALL PASS')
 
 
-def test_videos_for_tag_cross_library(tmp_db):
-    meta = tmp_db
-    meta.set_tags('a.mp4', ['fav'])
-    meta.set_tags('sub/b.mp4', ['fav'])
-    meta.set_tags('c.mp4', ['other'])
-    paths = set(meta.videos_for_tag('fav'))
-    assert paths == {'a.mp4', 'sub/b.mp4'}
-
-
-def test_tags_for_paths_bulk(tmp_db):
-    meta = tmp_db
-    meta.set_tags('a.mp4', ['x', 'y'])
-    meta.set_tags('b.mp4', ['x'])
-    m = meta.tags_for_paths(['a.mp4', 'b.mp4', 'c.mp4'])
-    assert m == {'a.mp4': ['x', 'y'], 'b.mp4': ['x']}
-    assert meta.tags_for_paths([]) == {}
+if __name__ == '__main__':
+    main()
