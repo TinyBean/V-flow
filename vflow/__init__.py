@@ -10,6 +10,7 @@ def create_app() -> Flask:
                 static_folder=str(root / 'static'))
     from . import config, meta
     app.secret_key = config.SECRET_KEY           # 登录 session 签名
+    app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 604800   # 静态资源 7 天浏览器缓存
     meta.init_db()
     from .routes import bp
     app.register_blueprint(bp)

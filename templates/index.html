@@ -496,7 +496,7 @@
       const folder = showFolder ? `<div class="tile__folder">${escapeHtml(folderOf(v.path))}</div>` : '';
       return `<div class="tile" role="button" tabindex="0" data-path="${escapeAttr(v.path)}" data-name="${escapeAttr(v.name)}" title="${escapeHtml(v.name)}">
         <div class="tile__media">
-          <img src="/api/thumb/${encodeURI(v.path)}" loading="lazy" alt="${escapeHtml(v.name)}" onload="this.classList.add('loaded')" onerror="this.remove()">
+          <img src="/api/thumb/${encodeURI(v.path)}" loading="lazy" alt="${escapeHtml(v.name)}" onload="thumbRetry(this, '${escapeAttr(v.path)}')" onerror="this.remove()">
           <div class="tile__monogram"><span class="mg">${ini}</span><span class="ex">${escapeHtml(v.ext)}</span></div>
           <div class="tile__play">${ICON.play}</div>
         </div>
@@ -568,6 +568,17 @@
       const shown = filteredVideos.length;
       document.getElementById('stats').textContent =
         (shown === total) ? `${total} 个视频` : `${shown} / ${total}`;
+    }
+
+    // ---- 缩略图:未命中返回 1x1 占位(naturalWidth<100),后台生成完后重试拿真图 ----
+    function thumbRetry(img, path) {
+      const tries = +img.dataset.tries || 0;
+      if (img.naturalWidth < 100 && tries < 6) {
+        img.dataset.tries = tries + 1;
+        setTimeout(() => { img.src = '/api/thumb/' + encodeURI(path) + '?r=' + (tries + 1); }, 1200);
+      } else {
+        img.classList.add('loaded');
+      }
     }
 
     // ---- 播放视频 ----

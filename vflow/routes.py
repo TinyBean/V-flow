@@ -10,7 +10,7 @@ from flask import (
 from . import config, meta
 from .security import safe_resolve
 from .videos import scan_dir, video_obj
-from .thumbnails import get_thumb_path, generate_thumbnail, _placeholder_svg, _maybe_warm_dir
+from .thumbnails import get_thumb_path, _placeholder_svg, _maybe_warm_dir, warm_one
 
 bp = Blueprint('vflow', __name__)
 
@@ -114,10 +114,10 @@ def api_thumb(filepath):
         abort(404)
     thumb = get_thumb_path(target)
     if not thumb.exists():
-        ok = generate_thumbnail(target, thumb)
-        if not ok:
-            svg = _placeholder_svg(target.stem)
-            return Response(svg, mimetype='image/svg+xml')
+        warm_one(filepath)                       # 后台生成;前端拿到占位后会重试
+        svg = Response(_placeholder_svg(), mimetype='image/svg+xml')
+        svg.headers['Cache-Control'] = 'no-store'   # 占位不缓存,重试必走网络
+        return svg
     resp = send_file(str(thumb), mimetype='image/jpeg', conditional=True)
     resp.headers['Cache-Control'] = 'public, max-age=604800, immutable'
     return resp
