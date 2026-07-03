@@ -13,6 +13,7 @@
   --ve-accent: oklch(0.84 0.13 70);
   --ve-accent-ink: oklch(0.20 0.02 70);
   --ve-error: oklch(0.78 0.15 25);
+  --ve-ok: oklch(0.78 0.13 150);
   --ve-radius: 10px;
   --ve-radius-sm: 7px;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -171,6 +172,11 @@
   padding: 10px 16px; border-radius: 999px;
   box-shadow: 0 10px 30px oklch(0 0 0 / 0.4);
   animation: vf-fade .15s ease;
+}
+.vf-edit__toast--ok {
+  background: color-mix(in oklch, var(--ve-ok) 16%, var(--ve-bg));
+  border-color: color-mix(in oklch, var(--ve-ok) 50%, transparent);
+  color: var(--ve-ok);
 }
 
 @media (max-width: 600px) {

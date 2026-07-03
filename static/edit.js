@@ -16,10 +16,10 @@
     move: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l-3 3 3 3"/><path d="M9 5l3-3 3 3"/><path d="M15 19l-3 3-3-3"/><path d="M19 9l3 3-3 3"/><path d="M2 12h20"/><path d="M12 2v20"/></svg>'
   };
 
-  function toast(msg) {
+  function toast(msg, kind) {
     document.querySelectorAll('.vf-edit__toast').forEach(function (e) { e.remove(); });
     var t = document.createElement('div');
-    t.className = 'vf-edit__toast';
+    t.className = 'vf-edit__toast' + (kind === 'ok' ? ' vf-edit__toast--ok' : '');
     t.textContent = msg;
     document.body.appendChild(t);
     setTimeout(function () { t.remove(); }, 2600);
@@ -113,6 +113,7 @@
       if (val === name) { close(); return; }
       var r = await post('/api/rename', { path: path, new_name: val });
       if (!r.ok) { toast((r.data && r.data.error) || '改名失败'); return; }
+      toast('已重命名', 'ok');
       close();
       if (onRenamed) onRenamed(r.data.path, r.data.name);
     }
@@ -246,12 +247,14 @@
         var target = cur ? cur + '/' + nm : nm;
         var r = await post('/api/mkdir', { path: target });
         if (!r.ok) { toast((r.data && r.data.error) || '新建失败'); return; }
+        toast('已新建文件夹', 'ok');
         ov.querySelector('#vf-newdir').value = '';
         refresh();
       }
       async function confirmMove() {
         var r = await post('/api/move', { path: path, dest_dir: cur });
         if (!r.ok) { toast((r.data && r.data.error) || '移动失败'); return; }
+        toast('已移动', 'ok');
         close();
         if (onMoved) onMoved(r.data.path, r.data.name);
       }
