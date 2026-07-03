@@ -156,14 +156,19 @@ def api_tags_set():
 def api_videos():
     """某标签下所有视频(跨库平铺),返回与 /api/browse 同结构的视频对象。
 
-    文件已被外部删除的条目跳过(不报错)。
+    文件已被外部删除的条目跳过,并顺手清掉这些幽灵行(读时自愈),
+    使 /api/tags 的计数与这里的筛选结果保持一致。
     """
     tag = (request.args.get('tag') or '').strip()
-    videos = []
+    videos, missing = [], []
     for p in meta.videos_for_tag(tag):
         target = safe_resolve(p)
         if target.is_file():
             videos.append(video_obj(target))
+        else:
+            missing.append(p)
+    if missing:
+        meta.prune_paths(missing)
     return jsonify({'videos': videos, 'count': len(videos)})
 
 

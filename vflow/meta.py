@@ -126,9 +126,33 @@ def tags_for_paths(paths: list) -> dict:
 
 
 def relocate_path(old_rel: str, new_rel: str):
-    """改名/移动成功后原子改键:把旧路径的标签搬到新路径。"""
+    """改名/移动成功后原子改键:把旧路径的标签搬到新路径。
+
+    目标路径若残留幽灵行(外部删除遗留),先清掉再搬——否则 PK 冲突会被
+    UPDATE OR IGNORE 吞掉,标签悄悄丢失。调用方已保证新路径无同名文件,
+    故 new_rel 上的行必是幽灵,删它绝对安全。
+    """
+    with get_db() as conn:
+        conn.execute('DELETE FROM video_tags WHERE video_path = ?', (new_rel,))
+        conn.execute(
+            'UPDATE video_tags SET video_path = ? WHERE video_path = ?',
+            (new_rel, old_rel))
+        conn.execute('DELETE FROM tags WHERE id NOT IN (SELECT tag_id FROM video_tags)')
+        conn.commit()
+
+
+def prune_paths(paths: list):
+    """删除这些路径的 video_tags 行 + 随之产生的孤儿标签。
+
+    文件已从磁盘消失(外部删除/移动遗留)时,由调用方发现并传入,使计数与
+    筛选一致。对应 routes.api_videos 的读时自愈。
+    """
+    if not paths:
+        return
+    placeholders = ','.join('?' * len(paths))
     with get_db() as conn:
         conn.execute(
-            'UPDATE OR IGNORE video_tags SET video_path = ? WHERE video_path = ?',
-            (new_rel, old_rel))
+            f'DELETE FROM video_tags WHERE video_path IN ({placeholders})',
+            list(paths))
+        conn.execute('DELETE FROM tags WHERE id NOT IN (SELECT tag_id FROM video_tags)')
         conn.commit()
