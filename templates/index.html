@@ -494,9 +494,9 @@
       const tags = (!showFolder && v.tags && v.tags.length)
         ? `<div class="tile__tags">${v.tags.map(t => `<span class="t">${escapeHtml(t)}</span>`).join('')}</div>` : '';
       const folder = showFolder ? `<div class="tile__folder">${escapeHtml(folderOf(v.path))}</div>` : '';
-      return `<div class="tile" role="button" tabindex="0" data-path="${escapeAttr(v.path)}" data-name="${escapeAttr(v.name)}" title="${escapeHtml(v.name)}">
+      return `<div class="tile" role="button" tabindex="0" data-path="${escapeHtml(v.path)}" data-name="${escapeHtml(v.name)}" title="${escapeHtml(v.name)}">
         <div class="tile__media">
-          <img src="/api/thumb/${encodeURI(v.path)}" loading="lazy" alt="${escapeHtml(v.name)}" onload="thumbRetry(this, '${escapeAttr(v.path)}')" onerror="this.remove()">
+          <img src="/api/thumb/${encodeURI(v.path)}" loading="lazy" alt="${escapeHtml(v.name)}" onload="thumbRetry(this)" onerror="this.remove()">
           <div class="tile__monogram"><span class="mg">${ini}</span><span class="ex">${escapeHtml(v.ext)}</span></div>
           <div class="tile__play">${ICON.play}</div>
         </div>
@@ -571,7 +571,10 @@
     }
 
     // ---- 缩略图:未命中返回 1x1 占位(naturalWidth<100),后台生成完后重试拿真图 ----
-    function thumbRetry(img, path) {
+    // path 从 tile 的 data-path 读(escapeHtml round-trip 干净),不通过 inline 传参——
+    // 否则 escapeAttr 的反斜杠经 HTML 属性→inline JS 编译会出错(含 ' 的文件名触发 missing-arg-list)
+    function thumbRetry(img) {
+      const path = img.closest('.tile').dataset.path;
       const tries = +img.dataset.tries || 0;
       if (img.naturalWidth < 100 && tries < 6) {
         img.dataset.tries = tries + 1;
@@ -602,7 +605,7 @@
       let html = `<button class="tagpill tagpill--all" type="button" aria-pressed="${allOn}">全部</button>`;
       globalTags.forEach(t => {
         const on = (mode === 'tag' && activeTag === t.name);
-        html += `<button class="tagpill" type="button" data-tag="${escapeAttr(t.name)}" aria-pressed="${on}">${escapeHtml(t.name)}<span class="tagpill__n">${t.count}</span></button>`;
+        html += `<button class="tagpill" type="button" data-tag="${escapeHtml(t.name)}" aria-pressed="${on}">${escapeHtml(t.name)}<span class="tagpill__n">${t.count}</span></button>`;
       });
       el.innerHTML = html;
       el.querySelector('.tagpill--all').addEventListener('click', exitTagView);
@@ -664,7 +667,7 @@
       if (!tags.length) { el.innerHTML = ''; return; }
       el.innerHTML = tags.map(t => {
         const on = folderTagSel.has(t);
-        return `<button class="tagpill" type="button" data-tag="${escapeAttr(t)}" aria-pressed="${on}">${escapeHtml(t)}</button>`;
+        return `<button class="tagpill" type="button" data-tag="${escapeHtml(t)}" aria-pressed="${on}">${escapeHtml(t)}</button>`;
       }).join('');
       el.querySelectorAll('.tagpill').forEach(b => {
         b.addEventListener('click', () => {
