@@ -92,25 +92,6 @@
     }
     .badge.show { opacity: 1; transform: none; }
 
-    /* ---------- hint ---------- */
-    .hint {
-      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-      z-index: var(--z-chrome);
-      display: flex; gap: 14px; flex-wrap: wrap; justify-content: center;
-      padding: 7px 16px; border-radius: 999px;
-      background: oklch(0.08 0 0 / 0.55);
-      border: 1px solid var(--line);
-      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-      color: var(--ink-3); font-size: 0.72rem;
-      transition: opacity .35s ease;
-      max-width: calc(100vw - 32px);
-    }
-    .chrome.is-hidden ~ .hint { opacity: 0; }
-    .hint kbd {
-      font-family: inherit; font-size: 0.68rem; color: var(--ink-2);
-      border: 1px solid var(--line); border-radius: 4px; padding: 0 5px;
-    }
-
     /* ---------- error ---------- */
     .err {
       position: fixed; inset: 0; z-index: var(--z-err);
@@ -139,8 +120,6 @@
       .chrome { padding: 14px 16px; gap: 10px; }
       .close span { display: none; }
       .close { padding: 8px; }
-      .hint { font-size: 0; gap: 8px; }
-      .hint kbd { font-size: 0.66rem; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -174,13 +153,6 @@
   </div>
 
   <div class="badge" id="badge">2.0×</div>
-
-  <div class="hint">
-    <span><kbd>长按</kbd> 2×</span>
-    <span><kbd>←</kbd><kbd>→</kbd> 快进退</span>
-    <span><kbd>Shift</kbd>+<kbd>←</kbd><kbd>→</kbd> ±10s</span>
-    <span><kbd>空格</kbd> 暂停</span>
-  </div>
 
   <div class="err" id="err">
     <div class="err__box">
