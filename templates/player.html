@@ -156,8 +156,9 @@
 
   <div class="err" id="err">
     <div class="err__box">
-      <div class="err__title">无法播放此格式</div>
-      <div class="err__sub">当前浏览器不支持该视频编码,请尝试其他文件或换用 Chrome / Edge。</div>
+      <div class="err__title" id="err__title">播放出错</div>
+      <div class="err__sub" id="err__sub"></div>
+      <button class="close" id="err__retry" style="margin-top:18px;">重试</button>
     </div>
   </div>
 
@@ -171,7 +172,35 @@
     const PATH = {{ path|tojson }};
     const NAME = {{ name|tojson }};
 
-    v.addEventListener('error', () => { document.getElementById('err').style.display = 'flex'; });
+    // ponytail: MediaError.code 区分网络/解码/格式,跳过 ABORTED(用户/浏览器中止,非真错误)
+    const ERR_MAP = {
+      2: ['网络中断', '拉取视频数据失败,可能是带宽不足或连接被切断。'],
+      3: ['解码失败', '视频数据出错或文件损坏,可重试或换用 Chrome / Edge。'],
+      4: ['无法播放此格式', '当前浏览器不支持该视频编码,请换用 Chrome / Edge。'],
+    };
+    function showErr(code) {
+      const [title, sub] = ERR_MAP[code] || ['播放出错', '未知错误,可重试或换用 Chrome / Edge。'];
+      document.getElementById('err__title').textContent = title;
+      document.getElementById('err__sub').textContent = sub;
+      document.getElementById('err__retry').style.display = (code === 4) ? 'none' : 'inline-flex';
+      document.getElementById('err').style.display = 'flex';
+    }
+    v.addEventListener('error', () => {
+      const code = v.error ? v.error.code : 0;
+      if (code === 1) return;                 // MEDIA_ERR_ABORTED:中止非真错误
+      showErr(code);
+    });
+    let pendingSeek = -1;
+    v.addEventListener('loadedmetadata', () => {
+      if (pendingSeek >= 0) { v.currentTime = pendingSeek; pendingSeek = -1; }
+    });
+    function retry() {
+      pendingSeek = v.currentTime || 0;       // 记住出错位置,重试后恢复
+      document.getElementById('err').style.display = 'none';
+      v.load();
+      v.play().catch(() => {});
+    }
+    document.getElementById('err__retry').addEventListener('click', retry);
 
     document.getElementById('close').addEventListener('click', () => window.close());
 
