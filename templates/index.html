@@ -250,6 +250,18 @@
     .pager__btn:disabled { opacity: 0.35; cursor: not-allowed; }
     .pager__info { font-size: 0.78rem; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
     .pager__total { font-size: 0.78rem; color: var(--ink-3); }
+    .pager__page {
+      appearance: none; cursor: pointer;
+      background: var(--surface); border: 1px solid var(--line);
+      color: var(--ink-2); min-width: 34px; height: 34px; padding: 0 4px;
+      border-radius: var(--radius-sm); font-size: 0.8rem;
+      font-variant-numeric: tabular-nums;
+      transition: background .15s ease, border-color .15s ease, color .15s ease;
+    }
+    .pager__page:hover { background: var(--surface-2); border-color: color-mix(in oklch, var(--ink) 22%, transparent); color: var(--ink); }
+    .pager__page:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .pager__page.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); cursor: default; }
+    .pager__gap { color: var(--ink-3); padding: 0 2px; user-select: none; }
 
     /* ---------- states ---------- */
     .state { text-align: center; padding: 96px 20px; color: var(--ink-2); }
@@ -542,6 +554,15 @@
     }
 
     // ---- 分页控件 ----
+    // 要显示的页码,null = 省略号;始终含首尾,当前页左右各 W 页
+    function pageList(page, total) {
+      const W = 3, out = [];
+      for (let p = 1; p <= total; p++) {
+        if (p === 1 || p === total || (p >= page - W && p <= page + W)) out.push(p);
+        else if (out[out.length - 1] !== null) out.push(null);
+      }
+      return out;
+    }
     function renderPagination(page, totalPages, total) {
       if (totalPages <= 1) {
         return `<div class="pager"><span class="pager__total">共 ${total} 个视频</span></div>`;
@@ -552,9 +573,16 @@
       const next = page < totalPages
         ? `<button class="pager__btn" onclick="goToPage(${page + 1})"><span>下一页</span>${ICON.next}</button>`
         : `<button class="pager__btn" disabled><span>下一页</span>${ICON.next}</button>`;
-      return `<div class="pager">${prev}
-        <span class="pager__info">${page} / ${totalPages}</span>
-        ${next}</div>`;
+      const pages = pageList(page, totalPages).map(p =>
+        p === null
+          ? `<span class="pager__gap">…</span>`
+          : p === page
+            ? `<button class="pager__page active" aria-current="page">${p}</button>`
+            : `<button class="pager__page" onclick="goToPage(${p})">${p}</button>`
+      ).join('');
+      return `<div class="pager">
+        <span class="pager__total">共 ${total} 个</span>
+        ${prev}${pages}${next}</div>`;
     }
 
     function goToPage(page) {
