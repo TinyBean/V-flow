@@ -4,7 +4,6 @@ import argparse
 import asyncio
 import datetime
 import ipaddress
-import threading
 from pathlib import Path
 
 # Windows GBK 控制台打印 emoji/中文会崩,强制 UTF-8
@@ -19,9 +18,11 @@ from vflow.config import set_video_root
 
 
 def _ensure_self_signed_cert(cert_path: Path, key_path: Path):
-    """生成本地自签证书(localhost + 127.0.0.1,有效期 10 年);已存在则跳过。
+    """生成本地自签证书(localhost + 127.0.0.1 + 本机 LAN IP,有效期 10 年);已存在则跳过。
 
     浏览器只在 TLS 下才允许 HTTP/2,所以本地 HTTPS 是开启多路复用的前提。
+    SAN 带上 LAN IP:手机/其它设备经 LAN IP 访问时证书才匹配,否则移动浏览器会
+    拒绝其媒体请求(页面能开、<video> 却报"格式不支持")。
     """
     if cert_path.exists() and key_path.exists():
         return
@@ -29,6 +30,26 @@ def _ensure_self_signed_cert(cert_path: Path, key_path: Path):
     from cryptography.x509.oid import NameOID
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
+    # 收集本机出口 LAN IP(UDP connect 不发包,仅问 OS"去这个地址用哪个网卡");
+    # 多目标兜底多网卡/多出口,去重后一并写进 SAN。
+    import socket as _socket
+    san = [
+        x509.DNSName('localhost'),
+        x509.IPAddress(ipaddress.ip_address('127.0.0.1')),
+    ]
+    for _tgt in ('223.5.5.5', '8.8.8.8', '114.114.114.114'):
+        try:
+            with _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM) as _s:
+                _s.connect((_tgt, 80))
+                _ip = _s.getsockname()[0]
+            if _ip.startswith('127.'):
+                continue
+            _entry = x509.IPAddress(ipaddress.ip_address(_ip))
+            if _entry not in san:
+                san.append(_entry)
+        except OSError:
+            pass
+
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, 'vflow-local')])
     now = datetime.datetime.now(datetime.timezone.utc)
@@ -38,10 +59,7 @@ def _ensure_self_signed_cert(cert_path: Path, key_path: Path):
             .serial_number(x509.random_serial_number())
             .not_valid_before(now - datetime.timedelta(minutes=5))
             .not_valid_after(now + datetime.timedelta(days=3650))
-            .add_extension(x509.SubjectAlternativeName([
-                x509.DNSName('localhost'),
-                x509.IPAddress(ipaddress.ip_address('127.0.0.1')),
-            ]), critical=False)
+            .add_extension(x509.SubjectAlternativeName(san), critical=False)
             .sign(key, hashes.SHA256()))
     key_path.write_bytes(key.private_bytes(
         encoding=serialization.Encoding.PEM,
@@ -78,9 +96,8 @@ def _wsgi_nonempty_body(app):
 def main():
     parser = argparse.ArgumentParser(description='V-flow 本地视频浏览器')
     parser.add_argument('--dir', '-d', default=str(Path.home()), help='视频文件夹路径')
-    parser.add_argument('--host', default='127.0.0.1', help='监听地址')
+    parser.add_argument('--host', default='0.0.0.0', help='监听地址')
     parser.add_argument('--port', '-p', type=int, default=5000, help='监听端口')
-    parser.add_argument('--open', '-o', action='store_true', help='自动打开浏览器')
     args = parser.parse_args()
 
     set_video_root(args.dir)
@@ -99,11 +116,6 @@ def main():
     cert_path = cert_dir / 'cert.pem'
     key_path = cert_dir / 'key.pem'
     _ensure_self_signed_cert(cert_path, key_path)
-
-    if args.open:
-        import webbrowser
-        url = f'https://{args.host}:{args.port}'
-        threading.Timer(1.2, lambda: webbrowser.open(url)).start()
 
     print(f'\n🎬 V-flow 已启动!  (HTTP/2 · HTTPS)')
     print(f'   打开: https://{args.host}:{args.port}')
