@@ -92,6 +92,21 @@
     }
     .badge.show { opacity: 1; transform: none; }
 
+    /* ---------- buffering spinner ---------- */
+    .spinner {
+      position: fixed; inset: 0; z-index: 150;   /* video/chrome 之上,err(300) 之下 */
+      display: none; align-items: center; justify-content: center;
+      pointer-events: none;                        /* 不挡原生控制条 / 时间轴点击 */
+    }
+    .spinner::before {
+      content: ''; width: 46px; height: 46px;
+      border: 3px solid oklch(0.96 0.004 90 / 0.22);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     /* ---------- error ---------- */
     .err {
       position: fixed; inset: 0; z-index: var(--z-err);
@@ -154,6 +169,8 @@
 
   <div class="badge" id="badge">2.0×</div>
 
+  <div class="spinner" id="spinner"></div>
+
   <div class="err" id="err">
     <div class="err__box">
       <div class="err__title" id="err__title">播放出错</div>
@@ -172,35 +189,62 @@
     const PATH = {{ path|tojson }};
     const NAME = {{ name|tojson }};
 
-    // ponytail: MediaError.code 区分网络/解码/格式,跳过 ABORTED(用户/浏览器中止,非真错误)
+    // ponytail: 慢链路下 seek 的 Range 易快速失败(RST/504),<video> 直接 error 不转圈。
+    // 改法:seeking/waiting 显示转圈;error(code 2/3) 先静默重试并保持转圈,用尽次数才报错。
+    const spinner = document.getElementById('spinner');
+    const showSpinner = () => spinner.style.display = 'flex';
+    const hideSpinner = () => spinner.style.display = 'none';
+    const MAX_RETRY = 3;
+    let seekRetry = 0;
+
+    v.addEventListener('seeking', showSpinner);
+    v.addEventListener('waiting', showSpinner);
+    v.addEventListener('seeked', () => { hideSpinner(); seekRetry = 0; });
+    v.addEventListener('canplay', () => { hideSpinner(); seekRetry = 0; });
+    v.addEventListener('playing', () => { hideSpinner(); seekRetry = 0; });
+
     const ERR_MAP = {
-      2: ['网络中断', '拉取视频数据失败,可能是带宽不足或连接被切断。'],
+      2: ['网络中断', '多次重试仍拉取失败,可能是带宽不足或连接被切断。'],
       3: ['解码失败', '视频数据出错或文件损坏,可重试或换用 Chrome / Edge。'],
       4: ['无法播放此格式', '当前浏览器不支持该视频编码,请换用 Chrome / Edge。'],
     };
     function showErr(code) {
-      const [title, sub] = ERR_MAP[code] || ['播放出错', '未知错误,可重试或换用 Chrome / Edge。'];
+      hideSpinner();
+      const [title, sub] = ERR_MAP[code] || ['播放出错', '发生了未知错误,可重试或换用 Chrome / Edge。'];
       document.getElementById('err__title').textContent = title;
       document.getElementById('err__sub').textContent = sub;
       document.getElementById('err__retry').style.display = (code === 4) ? 'none' : 'inline-flex';
       document.getElementById('err').style.display = 'flex';
     }
-    v.addEventListener('error', () => {
-      const code = v.error ? v.error.code : 0;
-      if (code === 1) return;                 // MEDIA_ERR_ABORTED:中止非真错误
-      showErr(code);
-    });
+
     let pendingSeek = -1;
     v.addEventListener('loadedmetadata', () => {
       if (pendingSeek >= 0) { v.currentTime = pendingSeek; pendingSeek = -1; }
     });
-    function retry() {
-      pendingSeek = v.currentTime || 0;       // 记住出错位置,重试后恢复
-      document.getElementById('err').style.display = 'none';
-      v.load();
-      v.play().catch(() => {});
+    function reloadAt(t, delay) {
+      pendingSeek = t;
+      const go = () => { v.load(); v.play().catch(() => {}); };
+      if (delay) setTimeout(go, delay); else go();
     }
-    document.getElementById('err__retry').addEventListener('click', retry);
+
+    v.addEventListener('error', () => {
+      const code = v.error ? v.error.code : 0;
+      if (code === 1) return;                          // ABORTED:中止非真错误
+      if ((code === 2 || code === 3) && seekRetry < MAX_RETRY) {
+        seekRetry++;
+        showSpinner();
+        reloadAt(v.currentTime || 0, 400 * seekRetry);  // 退避 0.4/0.8/1.2s
+        return;
+      }
+      showErr(code);
+    });
+
+    document.getElementById('err__retry').addEventListener('click', () => {
+      seekRetry = 0;                                    // 手动重试给满次数
+      document.getElementById('err').style.display = 'none';
+      showSpinner();
+      reloadAt(v.currentTime || 0, 0);
+    });
 
     document.getElementById('close').addEventListener('click', () => window.close());
 
