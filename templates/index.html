@@ -679,8 +679,8 @@
       });
     }
 
-    // 搜索 + 文件夹标签筛选组合
-    function applyFilters() {
+    // 搜索 + 文件夹标签筛选组合(resetPage=false 时保留当前页:供编辑后原地重筛)
+    function applyFilters(resetPage = true) {
       const q = (document.getElementById('search').value || '').trim().toLowerCase();
       let list = allVideos;
       if (q) list = list.filter(v => v.name.toLowerCase().includes(q));
@@ -692,24 +692,50 @@
         });
       }
       filteredVideos = list;
-      currentPage = 1;
+      if (resetPage) currentPage = 1;
       if (mode === 'tag') renderTagView(); else renderPage();
     }
 
-    // ---- 编辑(标签 / 改名 / 移动)----
+    // ---- 编辑(标签 / 改名 / 移动 / 删除)----
+    // 本地更新:复用回调已带回的新 path/name,直接改 allVideos 再重渲染当前页,
+    // 不重新 /api/browse —— 页码、滚动、搜索/筛选状态全部保留。
     function openEdit(path, name) {
       VflowEdit.open({
         path, name,
-        onRenamed: () => afterEdit(),
-        onMoved: () => afterEdit(),
-        onChanged: () => afterEdit(),
-        onDelete: () => afterEdit()
+        onRenamed: (newPath, newName) => {
+          const v = allVideos.find(x => x.path === path);
+          if (v) { v.path = newPath; v.name = newName; }
+          loadTagBar();
+          applyFilters(false);
+        },
+        onMoved: (newPath, newName) => {
+          if (mode === 'tag') {
+            // 标签随文件迁移:视频仍在当前标签列表,只是换了文件夹,原地改 path
+            const v = allVideos.find(x => x.path === path);
+            if (v) { v.path = newPath; v.name = newName; }
+            rerender();
+          } else {
+            dropVideo(path);          // 浏览视图:文件已移出当前文件夹
+          }
+        },
+        onChanged: () => {
+          loadTagBar();
+          renderFolderFilter();
+          applyFilters(false);        // 标签变了,重算筛选但保留当前页
+        },
+        onDelete: () => dropVideo(path)
       });
     }
-    function afterEdit() {
+    // 删除 / 移出当前文件夹:本地摘除,不重新拉取
+    function dropVideo(path) {
+      allVideos = allVideos.filter(v => v.path !== path);
+      filteredVideos = filteredVideos.filter(v => v.path !== path);
       loadTagBar();
-      if (mode === 'tag') enterTagView(activeTag);
-      else browse(currentDir);
+      renderFolderFilter();
+      rerender();
+    }
+    function rerender() {
+      if (mode === 'tag') renderTagView(); else renderPage();
     }
 
     // ---- 搜索 ----
