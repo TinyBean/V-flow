@@ -197,8 +197,10 @@
     const MAX_RETRY = 3;
     let seekRetry = 0;
 
-    v.addEventListener('seeking', showSpinner);
-    v.addEventListener('waiting', showSpinner);
+    // 原生控制条在 seeking/waiting 自带转圈,此时关掉自定义圈避免双圈;
+    // 自定义圈只在"出错重试的退避间隙"显示(那时原生不转)。
+    v.addEventListener('seeking', hideSpinner);
+    v.addEventListener('waiting', hideSpinner);
     v.addEventListener('seeked', () => { hideSpinner(); seekRetry = 0; });
     v.addEventListener('canplay', () => { hideSpinner(); seekRetry = 0; });
     v.addEventListener('playing', () => { hideSpinner(); seekRetry = 0; });
@@ -223,7 +225,7 @@
     });
     function reloadAt(t, delay) {
       pendingSeek = t;
-      const go = () => { v.load(); v.play().catch(() => {}); };
+      const go = () => { hideSpinner(); v.load(); v.play().catch(() => {}); };
       if (delay) setTimeout(go, delay); else go();
     }
 
