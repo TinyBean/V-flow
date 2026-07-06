@@ -172,6 +172,46 @@ def api_videos():
     return jsonify({'videos': videos, 'count': len(videos)})
 
 
+@bp.route('/api/related')
+def api_related():
+    """播放页侧栏:同标签(并集,按共标签数降序)+ 同文件夹视频,排除自身。
+
+    同标签:当前视频各标签 videos_for_tag 的并集;每个候选累计与当前视频
+    共享的标签数,按 (-共享数, 名字) 排序,最相关的在上。跳过已删除文件
+    (读时自愈,同 /api/videos)。同文件夹:父目录 scan_dir 的视频减自身。
+    """
+    rel = _norm(request.args.get('path'))
+    src = safe_resolve(rel)
+    if not src.is_file():
+        abort(404)
+
+    shares = {}  # 候选路径 -> 与当前视频共享的标签数
+    for t in meta.get_tags(rel):
+        for p in meta.videos_for_tag(t):
+            if p != rel:
+                shares[p] = shares.get(p, 0) + 1
+
+    tagged, missing = [], []
+    for p, n in shares.items():
+        target = safe_resolve(p)
+        if target.is_file():
+            tagged.append((n, video_obj(target)))
+        else:
+            missing.append(p)
+    if missing:
+        meta.prune_paths(missing)
+    tagged.sort(key=lambda x: (-x[0], x[1]['name']))
+    tagged = [v for _, v in tagged]
+
+    parent_rel = '/'.join(rel.split('/')[:-1])
+    folder = []
+    data = scan_dir(parent_rel)
+    if data and data.get('videos'):
+        folder = [v for v in data['videos'] if v['path'] != rel]
+
+    return jsonify({'tagged': tagged, 'folder': folder})
+
+
 @bp.route('/api/rename', methods=['POST'])
 def api_rename():
     """重命名文件(扩展名不变)+ relocate_path。"""

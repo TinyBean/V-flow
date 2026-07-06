@@ -12,6 +12,7 @@
       --ink-3:     oklch(0.60 0.006 80);
       --line:      oklch(0.96 0.004 90 / 0.14);
       --surface:   oklch(0.205 0.006 75 / 0.6);
+      --surface-2: oklch(0.250 0.007 75);
       --accent:    oklch(0.84 0.13 70);
       --accent-ink:oklch(0.20 0.02 70);
       --error:     oklch(0.78 0.15 25);
@@ -45,8 +46,10 @@
     .chrome {
       position: fixed; top: 0; left: 0; right: 0; z-index: var(--z-chrome);
       display: flex; align-items: center; gap: 16px;
-      padding: 18px 22px;
-      background: linear-gradient(to bottom, oklch(0.08 0 0 / 0.7), oklch(0.08 0 0 / 0));
+      padding: 16px 20px;
+      background: oklch(0.12 0.004 75 / 0.78);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
       transition: opacity .35s ease;
     }
     .chrome.is-hidden { opacity: 0; pointer-events: none; }
@@ -60,28 +63,61 @@
       color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       text-shadow: 0 1px 8px oklch(0 0 0 / 0.5);
     }
-    .chrome__sub {
-      font-size: 0.68rem; letter-spacing: 0.08em; text-transform: lowercase;
-      color: var(--ink-3);
-    }
-
     .close {
       appearance: none; cursor: pointer;
       display: inline-flex; align-items: center; gap: 8px;
       padding: 8px 14px; border-radius: 999px;
-      background: var(--surface); border: 1px solid var(--line);
+      background: transparent; border: 1px solid var(--line);
       color: var(--ink); font-size: 0.8rem;
-      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
       transition: background .18s ease, border-color .18s ease, color .18s ease;
       flex-shrink: 0;
     }
-    .close:hover { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+    .close:hover { background: var(--surface-2); }
     .close svg { width: 14px; height: 14px; }
     .close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+    /* ---------- chrome action buttons (primary / ghost / exit) ---------- */
+    .chrome__btn {
+      appearance: none; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 14px; border-radius: 999px;
+      background: transparent; border: 1px solid var(--line);
+      color: var(--ink); font-size: 0.8rem;
+      transition: background .18s ease, border-color .18s ease, color .18s ease;
+      flex-shrink: 0;
+    }
+    .chrome__btn:hover { background: var(--surface-2); }
+    .chrome__btn svg { width: 14px; height: 14px; }
+    .chrome__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    /* primary: 列表 抽屉触发,最常用的二次操作 → accent 描边 */
+    .chrome__btn--primary {
+      border-color: color-mix(in oklch, var(--accent) 55%, transparent);
+      color: var(--accent);
+    }
+    .chrome__btn--primary:hover {
+      background: color-mix(in oklch, var(--accent) 12%, transparent);
+      border-color: var(--accent);
+    }
+    /* exit: 右上角 icon-only,弱化权重,远离主操作 */
+    .chrome__x {
+      appearance: none; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 34px; height: 34px; border-radius: 9px;
+      background: transparent; border: 1px solid var(--line);
+      color: var(--ink-2);
+      transition: background .18s ease, border-color .18s ease, color .18s ease;
+      flex-shrink: 0;
+    }
+    .chrome__x:hover {
+      background: var(--surface-2); color: var(--ink);
+      border-color: color-mix(in oklch, var(--ink) 22%, transparent);
+    }
+    .chrome__x svg { width: 14px; height: 14px; }
+    .chrome__x:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
     /* ---------- speed badge ---------- */
     .badge {
-      position: fixed; top: 76px; right: 22px; z-index: var(--z-badge);
+      position: fixed; top: 68px; right: 20px; z-index: var(--z-badge);
       background: var(--accent); color: var(--accent-ink);
       font-weight: 700; font-size: 0.82rem; letter-spacing: -0.01em;
       padding: 5px 11px; border-radius: 7px;
@@ -126,15 +162,55 @@
     .chrome__tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; max-width: 60vw; }
     .chrome__tags:empty { display: none; }
     .chrome__tags .t {
-      font-size: 0.66rem; color: var(--ink-2);
-      border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px;
-      background: oklch(0.1 0 0 / 0.4);
+      font-size: 0.7rem; color: var(--ink-2);
+      border: 1px solid var(--line); border-radius: 999px;
+      padding: 3px 10px; line-height: 1.4;
+      background: var(--surface-2);
+    }
+
+    /* ---------- related drawer ---------- */
+    .drawer {
+      position: fixed; top: 0; right: 0; bottom: 0; width: 340px;
+      background: oklch(0.14 0.005 75 / 0.96);
+      border-left: 1px solid var(--line);
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      z-index: 250;                                 /* chrome(100) 之上, err(300) 之下 */
+      transform: translateX(100%); pointer-events: none;
+      transition: transform .28s ease;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .drawer.open { transform: none; pointer-events: auto; }
+    .drawer__head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 16px 12px; border-bottom: 1px solid var(--line); flex-shrink: 0;
+    }
+    .drawer__title { font-size: 0.9rem; font-weight: 600; letter-spacing: -0.01em; }
+    .drawer__body { overflow-y: auto; padding: 4px 0 24px; }
+    .drawer__hint { padding: 22px 18px; font-size: 0.8rem; color: var(--ink-3); }
+    .drawer__sec {
+      padding: 14px 16px 6px; font-size: 0.66rem; letter-spacing: 0.08em;
+      text-transform: lowercase; color: var(--ink-3);
+    }
+    .rel {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 16px; text-decoration: none; color: var(--ink);
+      transition: background .15s ease;
+    }
+    .rel:hover { background: var(--surface); }
+    .rel__thumb {
+      width: 72px; height: 42px; border-radius: 5px; object-fit: cover;
+      background: oklch(0 0 0 / 0.3); flex-shrink: 0;
+    }
+    .rel__name {
+      font-size: 0.82rem; min-width: 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
 
     @media (max-width: 600px) {
-      .chrome { padding: 14px 16px; gap: 10px; }
-      .close span { display: none; }
-      .close { padding: 8px; }
+      .chrome { padding: 12px 14px; gap: 8px; }
+      .chrome__btn span { display: none; }
+      .chrome__btn { padding: 8px; }
+      .drawer { width: 86vw; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -154,16 +230,18 @@
   <div class="chrome" id="chrome">
     <div class="chrome__title">
       <span class="chrome__name">{{ name }}</span>
-      <span class="chrome__sub">v-flow · 播放</span>
       <div class="chrome__tags" id="chromeTags"></div>
     </div>
-    <button class="close" id="edit" aria-label="编辑">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+    <button class="chrome__btn chrome__btn--primary" id="related" aria-label="相关视频">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      <span>列表</span>
+    </button>
+    <button class="chrome__btn" id="edit" aria-label="编辑">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
       <span>编辑</span>
     </button>
-    <button class="close" id="close" aria-label="关闭">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
-      <span>关闭</span>
+    <button class="chrome__x" id="close" aria-label="关闭" title="关闭">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
     </button>
   </div>
 
@@ -178,6 +256,16 @@
       <button class="close" id="err__retry" style="margin-top:18px;">重试</button>
     </div>
   </div>
+
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawer__head">
+      <span class="drawer__title">相关视频</span>
+      <button class="close" id="drawerClose" aria-label="关闭" style="padding:6px 10px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="drawer__body" id="drawerBody"></div>
+  </aside>
 
   <script src="/static/edit.js"></script>
   <script>
@@ -279,6 +367,48 @@
       });
     });
     loadMeta();
+
+    // ---- 相关视频抽屉(同标签并集 + 同文件夹) ----
+    // ponytail: 缩略图占位时不自动重试,/api/thumb 已 warm 后台,下次打开即有真图。
+    const drawer = document.getElementById('drawer');
+    const drawerBody = document.getElementById('drawerBody');
+    let relatedLoaded = false;
+
+    function setDrawer(open) {
+      drawer.classList.toggle('open', open);
+      drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
+    }
+    function renderGroup(title, list) {
+      if (!list || !list.length) return '';
+      const items = list.map(v => `
+        <a class="rel" href="/play/${encodeURI(v.path)}">
+          <img class="rel__thumb" src="/api/thumb/${encodeURI(v.path)}" loading="lazy" alt="">
+          <span class="rel__name">${escapeHtml(v.name)}</span>
+        </a>`).join('');
+      return `<div class="drawer__sec">${title} · ${list.length}</div>${items}`;
+    }
+    async function loadRelated() {
+      drawerBody.innerHTML = '<div class="drawer__hint">加载中…</div>';
+      try {
+        const r = await fetch('/api/related?path=' + encodeURIComponent(PATH));
+        const d = await r.json();
+        relatedLoaded = true;
+        const html = renderGroup('同标签', d.tagged) + renderGroup('同文件夹', d.folder);
+        drawerBody.innerHTML = html || '<div class="drawer__hint">无相关视频</div>';
+      } catch (e) {
+        drawerBody.innerHTML = '<div class="drawer__hint">加载失败</div>';
+      }
+    }
+    document.getElementById('related').addEventListener('click', () => {
+      if (typeof ping === 'function') ping();
+      const open = !drawer.classList.contains('open');
+      setDrawer(open);
+      if (open && !relatedLoaded) loadRelated();
+    });
+    document.getElementById('drawerClose').addEventListener('click', () => setDrawer(false));
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && drawer.classList.contains('open')) setDrawer(false);
+    });
 
     // ---- chrome 自动隐藏(无操作时淡出,鼠标移动恢复) ----
     let idleTimer = null;

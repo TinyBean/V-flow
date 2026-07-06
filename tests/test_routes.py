@@ -15,6 +15,9 @@ def client(tmp_path, monkeypatch):
     app = create_app()
     app.config['TESTING'] = True
     with app.test_client() as c:
+        # 绕过 _require_login 蓝图门槛(本地软门,鉴权本身另有 meta 层测试)
+        with c.session_transaction() as s:
+            s['user'] = config.AUTH_USER
         yield c
 
 
@@ -179,6 +182,43 @@ def test_get_videos_skips_deleted(client, tmp_path):
     os.remove(a)
     r = client.get('/api/videos?tag=fav')
     assert r.get_json()['videos'] == []
+
+
+# ---- 相关视频(侧栏)----
+
+def test_related_union_and_self_exclusion(client, tmp_path):
+    root = tmp_path / 'videos'
+    (root / 'sub').mkdir()
+    _vid(root, 'a.mp4')              # 自身:tag=fav,shared
+    _vid(root, 'b.mp4')              # 同标签 fav + 同文件夹
+    _vid(root / 'sub', 'c.mp4')      # 同标签 shared,不同文件夹
+    _vid(root, 'o.mp4')              # 无标签,仅同文件夹
+    client.post('/api/tags', json={'path': 'a.mp4', 'tags': ['fav', 'shared']})
+    client.post('/api/tags', json={'path': 'b.mp4', 'tags': ['fav']})
+    client.post('/api/tags', json={'path': 'sub/c.mp4', 'tags': ['shared']})
+    r = client.get('/api/related?path=a.mp4')
+    d = r.get_json()
+    assert {v['path'] for v in d['tagged']} == {'b.mp4', 'sub/c.mp4'}
+    assert {v['path'] for v in d['folder']} == {'b.mp4', 'o.mp4'}
+
+
+def test_related_missing_file_404(client, tmp_path):
+    r = client.get('/api/related?path=nope.mp4')
+    assert r.status_code == 404
+
+
+def test_related_sorted_by_shared_tag_count(client, tmp_path):
+    root = tmp_path / 'videos'
+    _vid(root, 'a.mp4')   # 自身: fav, shared, later
+    _vid(root, 'b.mp4')   # 共享 2 标签 (fav, shared)
+    _vid(root, 'c.mp4')   # 共享 1 (fav)
+    _vid(root, 'd.mp4')   # 共享 1 (later)
+    client.post('/api/tags', json={'path': 'a.mp4', 'tags': ['fav', 'shared', 'later']})
+    client.post('/api/tags', json={'path': 'b.mp4', 'tags': ['fav', 'shared']})
+    client.post('/api/tags', json={'path': 'c.mp4', 'tags': ['fav']})
+    client.post('/api/tags', json={'path': 'd.mp4', 'tags': ['later']})
+    paths = [v['path'] for v in client.get('/api/related?path=a.mp4').get_json()['tagged']]
+    assert paths == ['b.mp4', 'c.mp4', 'd.mp4']  # 共标签数降序,同分按名字 asc
 
 
 def test_browse_attaches_tags(client, tmp_path):
