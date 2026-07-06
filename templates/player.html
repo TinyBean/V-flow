@@ -406,6 +406,12 @@
       if (open && !relatedLoaded) loadRelated();
     });
     document.getElementById('drawerClose').addEventListener('click', () => setDrawer(false));
+    // 点击抽屉外空白处收起(排除抽屉自身与「列表」按钮,后者自有 toggle 逻辑)
+    document.addEventListener('click', e => {
+      if (!drawer.classList.contains('open')) return;
+      if (drawer.contains(e.target) || e.target.closest('#related')) return;
+      setDrawer(false);
+    });
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape' && drawer.classList.contains('open')) setDrawer(false);
     });
