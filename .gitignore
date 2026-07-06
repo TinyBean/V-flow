@@ -21,6 +21,7 @@ video/
 .playwright-cli/
 .impeccable/
 .superpowers/
+.omo/
 docs/superpowers/
 
 # ---- Editors / OS ----
