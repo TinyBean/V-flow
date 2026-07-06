@@ -18,6 +18,7 @@ video/
 
 # ---- Local agent / tool state (machine-specific, not part of the project) ----
 .claude/
+.opencode/
 .playwright-cli/
 .impeccable/
 .superpowers/

@@ -2,7 +2,7 @@
 
 Guidance for agents working in this repo. Verified against the code at time of writing.
 
-> `CLAUDE.md` exists but is **partially stale**: it omits login, the tags DB, the rename/move/delete APIs, Docker, tests, and `faststart_all.sh`; it also references a removed `-o/--open` flag and a `--host` default of `127.0.0.1` (now `0.0.0.0`). Trust this file and the code over `CLAUDE.md`.
+> `README.md` and `CLAUDE.md` are **both partially stale**: each omits login, the tags DB, the rename/move/delete APIs, Docker, tests, and `faststart_all.sh`; each also documents a removed `-o/--open` flag (the command table in `README.md` still lists it) and a `--host` default of `127.0.0.1` (actual default is `0.0.0.0`). Trust this file and the code over both.
 
 ## Commands
 
@@ -12,8 +12,11 @@ python app.py -d "<video dir>"            # --host defaults to 0.0.0.0 (LAN-expo
 python app.py -d "D:\Videos" --host 127.0.0.1 -p 8080   # lock to localhost
 
 # Tests (pytest; fixtures monkeypatch VIDEO_ROOT + META_DB to tmp dirs)
-pytest                       # or: python -m pytest
-python tests/test_meta.py    # this one is ALSO runnable standalone (has a __main__ block)
+pytest                       # full suite (or: python -m pytest)
+pytest tests/test_meta.py    # one file only
+# Note: `test_meta.py` has a `__main__` block but its sys.path.insert points at
+# tests/, not the repo root — `python tests/test_meta.py` fails with
+# ModuleNotFoundError. Run it through pytest, not directly.
 
 # Batch maintenance: .ts→.mp4 + faststart moov front-load (bash, needs ffmpeg). Dry-run by default.
 ./faststart_all.sh -d "D:/Videos"                  # preview
@@ -33,6 +36,7 @@ Flask app. Thin entry `app.py` (argparse + Hypercorn serve) → `vflow/` package
 - **Thumbnails** (`vflow/thumbnails.py`): cached in `.thumbs/`, keyed by md5 of the *absolute* path. Generated via ffmpeg on a 6-worker `ThreadPoolExecutor` with an `_inflight` set to dedupe concurrent writes to the same file. Returns a 1×1 SVG placeholder while generating / when ffmpeg is missing — never let the thumbnail path crash.
 - **Meta / tags** (`vflow/meta.py`, SQLite at `.meta/meta.db`): the **relative video path IS the stable key**. Any rename/move/delete MUST also call `meta.relocate_path()` / `meta.prune_paths()` so tags follow the file; ghost rows from externally-deleted files are self-healed on read in `/api/videos`. Tag names are case-insensitive unique.
 - **Auth**: hardcoded `admin` / `vflow123` in `vflow/config.py` (local soft gate, by design). A Blueprint-level `before_request` (`_require_login` in `routes.py`) guards every route except `vflow.login`. `/static/*` is served by Flask outside the Blueprint and is intentionally **not** gated.
+- **Route surface** (all in `vflow/routes.py`): pages `/`, `/login`+`/logout`, `/play/<path>`; read APIs `/api/browse`, `/api/stream/<path>`, `/api/thumb/<path>`, `/api/meta`, `/api/tags` (GET returns all tags+counts, POST sets one video's tags), `/api/videos?tag=`, `/api/related?path=`; POST mutators `/api/rename`, `/api/move`, `/api/mkdir`, `/api/delete` — every one of these calls `safe_resolve()` first.
 
 ## Critical gotchas
 
