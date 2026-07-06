@@ -22,6 +22,27 @@ def _video_obj(entry: Path, st) -> dict:
     }
 
 
+def _count_children(folder: Path):
+    """浅遍历单层:返回 (视频数, 子目录数)。隐藏文件 / $RECYCLE.BIN 跳过。"""
+    videos = subdirs = 0
+    try:
+        for entry in folder.iterdir():
+            if entry.name.startswith('.') or entry.name == '$RECYCLE.BIN':
+                continue
+            try:
+                st = entry.stat()
+            except OSError:
+                continue
+            if stat_mod.S_ISREG(st.st_mode):
+                if entry.suffix.lower() in config.VIDEO_EXTS:
+                    videos += 1
+            elif stat_mod.S_ISDIR(st.st_mode):
+                subdirs += 1
+    except PermissionError:
+        pass
+    return videos, subdirs
+
+
 def scan_dir(rel_dir: str):
     """扫描目录,返回子目录和视频文件列表(带元信息)。
 
@@ -54,5 +75,7 @@ def scan_dir(rel_dir: str):
                 videos.append(_video_obj(entry, st))
         else:
             rel = str(entry.relative_to(config.VIDEO_ROOT)).replace('\\', '/')
-            dirs.append({'name': entry.name, 'path': rel})
+            vc, sc = _count_children(entry)
+            dirs.append({'name': entry.name, 'path': rel,
+                         'video_count': vc, 'subdir_count': sc})
     return {'dirs': dirs, 'videos': videos, 'count': len(videos)}
