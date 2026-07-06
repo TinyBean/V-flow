@@ -8,7 +8,6 @@ VIDEO_ROOT = Path.home()
 VIDEO_EXTS = {'.mp4', '.mkv', '.webm', '.avi', '.mov', '.m4v',
               '.flv', '.wmv', '.mpg', '.mpeg', '.ts', '.3gp'}
 
-THUMB_TIME = '00:00:03'
 THUMB_WIDTH = 480
 
 # 缓存目录放在工程根(vflow 的上一级)

@@ -10,7 +10,7 @@ from flask import (
 from . import config, meta
 from .security import safe_resolve
 from .videos import scan_dir, video_obj
-from .thumbnails import get_thumb_path, _placeholder_svg, _maybe_warm_dir, warm_one
+from .thumbnails import get_thumb_path, _PLACEHOLDER_SVG, _maybe_warm_dir, warm_one
 
 bp = Blueprint('vflow', __name__)
 
@@ -23,23 +23,13 @@ def _norm(p):
 # ---------- 登录门槛 ----------
 # ponytail: blueprint 级 before_request —— 一次守卫盖住所有页面与 /api/*,
 # 唯一豁免登录页本身。static 由 app 直出,不在 blueprint 范围,不拦截(无敏感内容)。
-_PUBLIC = {'vflow.login'}
-
-
 @bp.before_request
 def _require_login():
     if session.get('user'):
         return None
-    if request.endpoint in _PUBLIC:
+    if request.endpoint == 'vflow.login':
         return None
     return redirect(url_for('vflow.login', next=request.full_path))
-
-
-def _safe_next(target):
-    """只允许站内相对跳转,防开放重定向。"""
-    if target and target.startswith('/') and not target.startswith('//'):
-        return target
-    return url_for('vflow.index')
 
 
 @bp.route('/login', methods=['GET', 'POST'])
@@ -50,7 +40,10 @@ def login():
         if user == config.AUTH_USER and pwd == config.AUTH_PASS:
             session.permanent = True              # 浏览器重启后仍保持登录(默认 31 天)
             session['user'] = user
-            return redirect(_safe_next(request.args.get('next')))
+            # 仅允许站内相对跳转,防开放重定向
+            nxt = request.args.get('next') or ''
+            target = nxt if (nxt.startswith('/') and not nxt.startswith('//')) else url_for('vflow.index')
+            return redirect(target)
         return render_template('login.html', error='用户名或密码错误'), 401
     return render_template('login.html', error=None)
 
@@ -115,7 +108,7 @@ def api_thumb(filepath):
     thumb = get_thumb_path(target)
     if not thumb.exists():
         warm_one(filepath)                       # 后台生成;前端拿到占位后会重试
-        svg = Response(_placeholder_svg(), mimetype='image/svg+xml')
+        svg = Response(_PLACEHOLDER_SVG, mimetype='image/svg+xml')
         svg.headers['Cache-Control'] = 'no-store'   # 占位不缓存,重试必走网络
         return svg
     resp = send_file(str(thumb), mimetype='image/jpeg', conditional=True)

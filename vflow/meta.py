@@ -24,14 +24,10 @@ CREATE TABLE IF NOT EXISTS video_tags (
 
 def init_db():
     """建表、设 WAL 与外键。在 create_app() 中调用一次;幂等。"""
-    conn = sqlite3.connect(str(config.META_DB))
-    try:
+    with get_db() as conn:
         conn.execute('PRAGMA journal_mode = WAL')
-        conn.execute('PRAGMA foreign_keys = ON')
         conn.executescript(_SCHEMA)
         conn.commit()
-    finally:
-        conn.close()
 
 
 @contextlib.contextmanager

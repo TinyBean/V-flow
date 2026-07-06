@@ -81,7 +81,6 @@ def _maybe_warm_dir(rel, videos):
         warm_one(v['path'])
 
 
-def _placeholder_svg() -> str:
-    """1x1 透明占位:naturalWidth<100 是前端识别「生成中」的暗号;
-    真正的字母占位由前端的 .tile__monogram 层显示。"""
-    return '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'
+# 1x1 透明占位:naturalWidth<100 是前端识别「生成中」的暗号;
+# 真正的字母占位由前端的 .tile__monogram 层显示。
+_PLACEHOLDER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'
