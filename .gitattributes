@@ -1,0 +1,2 @@
+# Shell 脚本必须用 LF(CRLF 会让 Linux bash 报语法错误)
+*.sh text eol=lf
