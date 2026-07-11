@@ -309,7 +309,13 @@
 
     let pendingSeek = -1;
     v.addEventListener('loadedmetadata', () => {
-      if (pendingSeek >= 0) { v.currentTime = pendingSeek; pendingSeek = -1; }
+      if (pendingSeek >= 0) { v.currentTime = pendingSeek; pendingSeek = -1; return; }
+      // 续播:错误重试路径让位给 pendingSeek;否则查 localStorage
+      const rec = getProgress(PATH);
+      if (rec && isFinite(rec.t) && isFinite(rec.d)
+          && rec.t > RESUME_MARGIN && rec.t < rec.d - RESUME_MARGIN) {
+        v.currentTime = rec.t;
+      }
     });
     function reloadAt(t, delay) {
       pendingSeek = t;
@@ -335,6 +341,44 @@
       showSpinner();
       reloadAt(v.currentTime || 0, 0);
     });
+
+    // ---- 记住播放进度(localStorage,per-browser;不跨设备同步) ----
+    // ponytail: per-browser,不跨设备同步;如需同步改服务端 SQLite + progress 表
+    // + rename/move/delete 钩子(同 meta.relocate_path 现有模式)。
+    const PROGRESS_KEY = 'vflow:progress';
+    const PROGRESS_MAX = 200;          // 上限条数,超限按 ts 删最旧
+    const RESUME_MARGIN = 10;          // 首/末 10 秒内不续播
+    function readProgressMap() {
+      try { return JSON.parse(localStorage.getItem(PROGRESS_KEY) || '{}'); }
+      catch (e) { return {}; }
+    }
+    function getProgress(path) { return readProgressMap()[path]; }
+    function saveProgress(path, t, d) {
+      // 0/NaN/非正时长不写,免得覆盖有效值
+      if (!isFinite(t) || t <= 0 || !isFinite(d) || d <= 0) return;
+      const map = readProgressMap();
+      map[path] = { t, d, ts: Date.now() };
+      const keys = Object.keys(map);
+      if (keys.length > PROGRESS_MAX) {
+        keys.sort((a, b) => map[a].ts - map[b].ts);
+        for (let i = 0; i < keys.length - PROGRESS_MAX; i++) delete map[keys[i]];
+      }
+      try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(map)); } catch (e) {}
+    }
+    function clearProgress(path) {
+      const map = readProgressMap();
+      if (!map[path]) return;
+      delete map[path];
+      try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(map)); } catch (e) {}
+    }
+    // 写入:每 5s 轮询 + 暂停 + 离页(刷新由 pagehide/beforeunload 覆盖)
+    setInterval(() => saveProgress(PATH, v.currentTime, v.duration), 5000);
+    v.addEventListener('pause', () => saveProgress(PATH, v.currentTime, v.duration));
+    const _onHide = () => saveProgress(PATH, v.currentTime, v.duration);
+    window.addEventListener('pagehide', _onHide);
+    window.addEventListener('beforeunload', _onHide);
+    // 看完 -> 清掉,下次从头放
+    v.addEventListener('ended', () => clearProgress(PATH));
 
     document.getElementById('close').addEventListener('click', () => window.close());
 
