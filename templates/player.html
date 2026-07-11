@@ -462,6 +462,8 @@
     v.addEventListener('touchstart', startPress, { passive: true });
     v.addEventListener('touchend', endPress);
     v.addEventListener('touchcancel', endPress);
+    // 手机长按会触发系统菜单(下载等),阻止掉
+    v.addEventListener('contextmenu', e => e.preventDefault());
     // 长按松开引发的 click 会触发原生暂停,在捕获阶段吞掉
     v.addEventListener('click', e => {
       if (suppressClick) { e.preventDefault(); e.stopPropagation(); }
