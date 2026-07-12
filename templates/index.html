@@ -468,7 +468,7 @@
     }
 
     // ---- 浏览目录 ----
-    async function browse(path) {
+    async function browse(path, page = 1) {
       currentDir = path || '';
       mode = 'browse'; activeTag = null;
       folderTagSel = new Set();
@@ -491,10 +491,11 @@
         allVideos = data.videos || [];
         filteredVideos = allVideos;
         currentDirs = data.dirs || [];
-        currentPage = 1;
+        currentPage = page;
         document.getElementById('search').value = '';
         renderFolderFilter();
         renderPage();
+        writeHash();
       } catch (e) {
         main.innerHTML = `<div class="notice">加载失败: ${escapeHtml(e.message)}</div>`;
       }
@@ -666,6 +667,7 @@
     function goToPage(page) {
       currentPage = page;
       renderPage();
+      writeHash();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
@@ -798,7 +800,7 @@
         });
       }
       filteredVideos = list;
-      if (resetPage) currentPage = 1;
+      if (resetPage) { currentPage = 1; writeHash(); }
       if (mode === 'tag') renderTagView(); else renderPage();
     }
 
@@ -903,9 +905,45 @@
       el.innerHTML = html;
     }
 
+    // ---- hash 路由:刷新 / 前进后退保留目录和页码 ----
+    // ponytail: URLSearchParams 按规范处理编码,中文/?/&/=/#/% 均安全往返;搜索词/标签筛选/标签视图不进 hash(YAGNI)
+    function buildHash() {
+      const p = new URLSearchParams();
+      if (currentDir) p.set('d', currentDir);
+      if (currentPage > 1) p.set('p', currentPage);
+      return p.toString();
+    }
+    function readHash() {
+      const p = new URLSearchParams(location.hash.slice(1));
+      return { path: p.get('d') || '', page: +p.get('p') || 1 };
+    }
+    function writeHash() {
+      const want = buildHash();
+      if (want !== location.hash.slice(1)) history.pushState(null, '', '#' + want);
+    }
+    // ponytail: parser 自检,绿则静默,生产零成本
+    (() => {
+      const cases = [
+        ['', '', 1], ['d=foo', 'foo', 1], ['d=foo&p=2', 'foo', 2], ['p=2', '', 2],
+        ['d=%E7%94%B5%E5%BD%B1', '电影', 1],          // 中文目录
+        ['d=a%3Fp%3Db', 'a?p=b', 1],                    // 旧手搓方案的死穴
+        ['d=a%26b%3Dc', 'a&b=c', 1],                    // 路径含 & =
+        ['d=foo%23bar', 'foo#bar', 1],                  // 路径含 #
+        ['p=abc', '', 1], ['garbage', '', 1],
+      ];
+      for (const [h, p, n] of cases) {
+        const r = readHash('#' + h);
+        console.assert(r.path === p && r.page === n, 'readHash ' + h, r);
+      }
+    })();
+    window.addEventListener('hashchange', () => {
+      const { path, page } = readHash();
+      if (path !== currentDir || (mode === 'browse' && page !== currentPage)) browse(path, page);
+    });
+
     // ---- 启动 ----
     renderRecent();
-    browse('');
+    { const i = readHash(); browse(i.path, i.page); }
     loadTagBar();
   </script>
 </body>
