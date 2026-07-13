@@ -13,6 +13,9 @@ services:
     env_file:
       - path: .env
         required: false
+    # 容器经 host.docker.internal 访问宿主机服务(如本机 OpenList 的 5244)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "5000:5000"
     volumes:

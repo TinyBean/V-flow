@@ -65,7 +65,7 @@ docker run -d -p 5000:5000 -v D:/Videos:/app/video vflow
 
 | 变量 | 说明 | 默认 |
 |------|------|------|
-| `OPENLIST_DAV` | OpenList 的 WebDAV 根地址,如 `http://192.168.31.223:5244/dav` | 空(禁用) |
+| `OPENLIST_DAV` | OpenList 的 WebDAV 根地址。容器同宿主机用 `http://host.docker.internal:5244/dav`(compose 已配 `extra_hosts`);跨机 / 本地非容器运行填对方 IP | 空(禁用) |
 | `OPENLIST_USER` | OpenList 账号;**留空则网盘功能关闭** | 空 |
 | `OPENLIST_PASS` | OpenList 密码 | 空 |
 | `NET_PREFIX` | V-flow 里网盘挂载的虚拟目录名 | `net` |
