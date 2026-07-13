@@ -16,6 +16,9 @@ env/
 # ---- Local video content (large, private; mounted at runtime, never committed) ----
 video/
 
+# ---- Local env (real credentials; .env.example is tracked, .env is not) ----
+.env
+
 # ---- Local agent / tool state (machine-specific, not part of the project) ----
 .claude/
 .opencode/

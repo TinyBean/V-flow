@@ -32,7 +32,7 @@ SECRET_KEY = 'vflow-local-secret-please-change'   # 仅用于 session 签名
 # ---------- 网盘(经 OpenList WebDAV 桥接 115 / 夸克)----------
 # ponytail: <1G 预算 → 只流式不缓存视频字节;网盘源禁 ffmpeg 缩略图。
 # 全部支持 env 覆盖(Docker 友好);OPENLIST_USER 留空则网盘功能关闭。
-OPENLIST_DAV = os.environ.get('OPENLIST_DAV', 'http://192.168.31.223:5244/dav')
+OPENLIST_DAV = os.environ.get('OPENLIST_DAV', '')   # OpenList WebDAV 根地址(留空=禁用网盘)
 OPENLIST_USER = os.environ.get('OPENLIST_USER', '')   # OpenList 账号(留空=禁用网盘)
 OPENLIST_PASS = os.environ.get('OPENLIST_PASS', '')
 NET_PREFIX = os.environ.get('NET_PREFIX', 'net')       # V-flow 路径空间里的网盘虚拟挂载点

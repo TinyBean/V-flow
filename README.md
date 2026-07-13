@@ -53,6 +53,40 @@ docker build -t vflow .
 docker run -d -p 5000:5000 -v D:/Videos:/app/video vflow
 ```
 
+## 网盘接入(可选)
+
+经 [OpenList](https://github.com/OpenListTeam/OpenList)(AList fork)的 WebDAV 桥接,可在 V-flow 里直接浏览 / 播放 115、夸克等网盘视频,并给它们打标签。标签与本地视频共用同一套标签库(网盘路径以 `net/` 前缀和本地路径区分),改名 / 移动 / 删除请到 OpenList 操作。
+
+> 由网盘 / OpenList 决定的限制:网盘视频不生成画面缩略图(字母占位);115 拖动进度条可能因签名 URL 重取略卡。
+
+### 环境变量
+
+默认关闭(`OPENLIST_USER` 留空即禁用)。启用需填:
+
+| 变量 | 说明 | 默认 |
+|------|------|------|
+| `OPENLIST_DAV` | OpenList 的 WebDAV 根地址,如 `http://192.168.31.223:5244/dav` | 空(禁用) |
+| `OPENLIST_USER` | OpenList 账号;**留空则网盘功能关闭** | 空 |
+| `OPENLIST_PASS` | OpenList 密码 | 空 |
+| `NET_PREFIX` | V-flow 里网盘挂载的虚拟目录名 | `net` |
+
+**Docker**:`cp .env.example .env` 并填入,`docker-compose.yml` 已配 `env_file` 自动读取:
+
+```bash
+cp .env.example .env
+# 编辑 .env 填 OPENLIST_DAV / OPENLIST_USER / OPENLIST_PASS(.env 已 gitignore,不提交)
+```
+
+**本地运行**:
+
+```bash
+OPENLIST_DAV=http://192.168.31.223:5244/dav \
+OPENLIST_USER=vflow OPENLIST_PASS=xxx \
+python app.py -d "D:\Videos"
+```
+
+启用后,首页会多出一个「网盘」入口,点进去即是 OpenList 里挂载的网盘。
+
 ## 命令参数
 
 | 参数 | 说明 | 默认值 |
