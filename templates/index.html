@@ -558,6 +558,7 @@
       return h % 360;
     }
     function folderMeta(d) {
+      if (d.net) return '';                      // 网盘目录不计数,留空而非误导性的"空"
       const v = d.video_count | 0, s = d.subdir_count | 0;
       if (v && s) return `${v} 视频 · ${s} 子目录`;
       if (v) return `${v} 视频`;

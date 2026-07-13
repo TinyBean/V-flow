@@ -1,4 +1,5 @@
 """配置:视频根目录、常量、缓存目录路径。"""
+import os
 import sys
 from pathlib import Path
 
@@ -26,6 +27,17 @@ WARM_BATCH = 60
 AUTH_USER = 'admin'
 AUTH_PASS = 'vflow123'
 SECRET_KEY = 'vflow-local-secret-please-change'   # 仅用于 session 签名
+
+
+# ---------- 网盘(经 OpenList WebDAV 桥接 115 / 夸克)----------
+# ponytail: <1G 预算 → 只流式不缓存视频字节;网盘源禁 ffmpeg 缩略图。
+# 全部支持 env 覆盖(Docker 友好);OPENLIST_USER 留空则网盘功能关闭。
+OPENLIST_DAV = os.environ.get('OPENLIST_DAV', 'http://192.168.31.223:5244/dav')
+OPENLIST_USER = os.environ.get('OPENLIST_USER', '')   # OpenList 账号(留空=禁用网盘)
+OPENLIST_PASS = os.environ.get('OPENLIST_PASS', '')
+NET_PREFIX = os.environ.get('NET_PREFIX', 'net')       # V-flow 路径空间里的网盘虚拟挂载点
+NET_MAX_CONCURRENCY = 2   # 115 风控硬线:网盘请求全局并发上限
+NET_TIMEOUT = 30          # 网盘请求超时(秒;仅作用于建连+首字节,不限长流)
 
 
 def set_video_root(path: str):

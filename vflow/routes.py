@@ -7,7 +7,7 @@ from flask import (
     Response, abort, session, redirect, url_for
 )
 
-from . import config, meta
+from . import config, meta, netstore
 from .security import safe_resolve
 from .videos import scan_dir, video_obj
 from .thumbnails import get_thumb_path, _PLACEHOLDER_SVG, _maybe_warm_dir, warm_one
@@ -18,6 +18,12 @@ bp = Blueprint('vflow', __name__)
 def _norm(p):
     """把相对路径规范成正斜杠字符串(与 scan_dir 输出的 rel 一致)。"""
     return (p or '').replace('\\', '/').strip()
+
+
+def _net_entry():
+    """本地根目录里注入的虚拟「网盘」入口(点击进入 net/ 即 OpenList 根)。"""
+    return {'name': '网盘', 'path': config.NET_PREFIX,
+            'video_count': 0, 'subdir_count': 0, 'net': True}
 
 
 # ---------- 登录门槛 ----------
@@ -62,6 +68,11 @@ def index():
 @bp.route('/play/<path:filepath>')
 def play(filepath):
     """独立播放页。"""
+    if netstore.is_net(filepath):
+        info = netstore.stat(filepath)
+        if not info:
+            abort(404)
+        return render_template('player.html', path=filepath, name=info['name'])
     target = safe_resolve(filepath)
     if not target.is_file():
         abort(404)
@@ -71,9 +82,19 @@ def play(filepath):
 @bp.route('/api/browse')
 def api_browse():
     rel = request.args.get('path', '').strip()
-    data = scan_dir(rel)
-    if data is None:
-        return jsonify({'error': '文件夹不存在'}), 404
+    is_n = netstore.is_net(rel)
+    if is_n:
+        data = netstore.list_dir(rel)
+        if data is None:
+            return jsonify({'error': '网盘文件夹不存在或 OpenList 不可达'}), 404
+        for d in data.get('dirs', []):
+            d['net'] = True
+    else:
+        data = scan_dir(rel)
+        if data is None:
+            return jsonify({'error': '文件夹不存在'}), 404
+        if rel == '' and netstore.enabled():
+            data.setdefault('dirs', []).insert(0, _net_entry())
     rel_path = rel.replace('\\', '/') if rel else ''
     crumbs = [{'name': '根目录', 'path': ''}]
     if rel_path:
@@ -82,17 +103,24 @@ def api_browse():
             crumbs.append({'name': parts[i-1], 'path': '/'.join(parts[:i])})
     data['breadcrumbs'] = crumbs
     data['current'] = rel_path
-    # 附加每个视频的标签,供本文件夹标签筛选
+    # 标签对本地/网盘通用(路径字符串键);仅本地预热缩略图
     tag_map = meta.tags_for_paths([v['path'] for v in data.get('videos', [])])
     for v in data.get('videos', []):
         v['tags'] = tag_map.get(v['path'], [])
-    _maybe_warm_dir(rel_path, data.get('videos', []))
+    if not is_n:
+        _maybe_warm_dir(rel_path, data.get('videos', []))
     return jsonify(data)
 
 
 @bp.route('/api/stream/<path:filepath>')
 def api_stream(filepath):
-    """视频流;send_file 的 conditional=True 原生处理 Range(206)/全量(200)。"""
+    """视频流;send_file 的 conditional=True 原生处理 Range(206)/全量(200)。
+
+    网盘走 netstore.stream:转发 Range,跟随 OpenList 的 302(115)/代理(夸克),
+    透明抹平两种下载模式;404 由 netstore 自行处理。
+    """
+    if netstore.is_net(filepath):
+        return netstore.stream(filepath, request.headers.get('Range'))
     target = safe_resolve(filepath)
     if not target.is_file():
         abort(404)
@@ -102,6 +130,10 @@ def api_stream(filepath):
 
 @bp.route('/api/thumb/<path:filepath>')
 def api_thumb(filepath):
+    if netstore.is_net(filepath):
+        # 网盘不生成缩略图(<1G 不缓存视频字节;避 ffmpeg 下整文件 + 115 风控):
+        # 返回 404,前端 <img onerror> 移除自身、显字母占位、不触发重试
+        abort(404)
     target = safe_resolve(filepath)
     if not target.is_file():
         abort(404)
@@ -122,7 +154,8 @@ def api_thumb(filepath):
 def api_meta():
     """单视频信息(当前标签)。"""
     rel = _norm(request.args.get('path'))
-    safe_resolve(rel)                       # 越界 -> 403
+    if not netstore.is_net(rel):
+        safe_resolve(rel)                       # 越界 -> 403(仅本地)
     return jsonify({'tags': meta.get_tags(rel)})
 
 
@@ -137,7 +170,8 @@ def api_tags_set():
     """设置某视频标签(全量覆盖)。"""
     data = request.get_json(silent=True) or {}
     rel = _norm(data.get('path'))
-    safe_resolve(rel)
+    if not netstore.is_net(rel):
+        safe_resolve(rel)
     tags = data.get('tags')
     if not isinstance(tags, list):
         return jsonify({'error': 'tags 必须是数组'}), 400
@@ -150,16 +184,23 @@ def api_videos():
     """某标签下所有视频(跨库平铺),返回与 /api/browse 同结构的视频对象。
 
     文件已被外部删除的条目跳过,并顺手清掉这些幽灵行(读时自愈),
-    使 /api/tags 的计数与这里的筛选结果保持一致。
+    使 /api/tags 的计数与这里的筛选结果保持一致。本地/网盘路径混合存在。
     """
     tag = (request.args.get('tag') or '').strip()
     videos, missing = [], []
     for p in meta.videos_for_tag(tag):
-        target = safe_resolve(p)
-        if target.is_file():
-            videos.append(video_obj(target))
+        if netstore.is_net(p):
+            info = netstore.stat(p)
+            if info:
+                videos.append(info)
+            else:
+                missing.append(p)
         else:
-            missing.append(p)
+            target = safe_resolve(p)
+            if target.is_file():
+                videos.append(video_obj(target))
+            else:
+                missing.append(p)
     if missing:
         meta.prune_paths(missing)
     return jsonify({'videos': videos, 'count': len(videos)})
@@ -174,9 +215,14 @@ def api_related():
     (读时自愈,同 /api/videos)。同文件夹:父目录 scan_dir 的视频减自身。
     """
     rel = _norm(request.args.get('path'))
-    src = safe_resolve(rel)
-    if not src.is_file():
-        abort(404)
+    is_n = netstore.is_net(rel)
+    if is_n:
+        if not netstore.is_file(rel):
+            abort(404)
+    else:
+        src = safe_resolve(rel)
+        if not src.is_file():
+            abort(404)
 
     shares = {}  # 候选路径 -> 与当前视频共享的标签数
     for t in meta.get_tags(rel):
@@ -186,11 +232,18 @@ def api_related():
 
     tagged, missing = [], []
     for p, n in shares.items():
-        target = safe_resolve(p)
-        if target.is_file():
-            tagged.append((n, video_obj(target)))
+        if netstore.is_net(p):
+            info = netstore.stat(p)
+            if info:
+                tagged.append((n, info))
+            else:
+                missing.append(p)
         else:
-            missing.append(p)
+            target = safe_resolve(p)
+            if target.is_file():
+                tagged.append((n, video_obj(target)))
+            else:
+                missing.append(p)
     if missing:
         meta.prune_paths(missing)
     tagged.sort(key=lambda x: (-x[0], x[1]['name']))
@@ -198,7 +251,7 @@ def api_related():
 
     parent_rel = '/'.join(rel.split('/')[:-1])
     folder = []
-    data = scan_dir(parent_rel)
+    data = netstore.list_dir(parent_rel) if is_n else scan_dir(parent_rel)
     if data and data.get('videos'):
         folder = [v for v in data['videos'] if v['path'] != rel]
 
@@ -210,6 +263,8 @@ def api_rename():
     """重命名文件(扩展名不变)+ relocate_path。"""
     data = request.get_json(silent=True) or {}
     rel = _norm(data.get('path'))
+    if netstore.is_net(rel):
+        return jsonify({'error': '网盘文件请在 OpenList 中管理'}), 400
     new_name = (data.get('new_name') or '').strip()
     if not new_name or '/' in new_name or '\\' in new_name or new_name in ('.', '..'):
         return jsonify({'error': '名称不能为空,且不能含 / \\ 或为 . ..'}), 400
@@ -233,6 +288,8 @@ def api_move():
     """移动文件到目标文件夹 + relocate_path。"""
     data = request.get_json(silent=True) or {}
     rel = _norm(data.get('path'))
+    if netstore.is_net(rel):
+        return jsonify({'error': '网盘文件请在 OpenList 中管理'}), 400
     src = safe_resolve(rel)
     if not src.is_file():
         abort(404)
@@ -256,6 +313,8 @@ def api_mkdir():
     """新建文件夹。"""
     data = request.get_json(silent=True) or {}
     rel = _norm(data.get('path'))
+    if netstore.is_net(rel):
+        return jsonify({'error': '网盘文件夹请在 OpenList 中管理'}), 400
     target = safe_resolve(rel)
     if target == config.VIDEO_ROOT:
         return jsonify({'error': '名称不能为空'}), 400
@@ -273,6 +332,8 @@ def api_delete():
     """删除视频:文件 + 缩略图 + 标签行,一处不留。"""
     data = request.get_json(silent=True) or {}
     rel = _norm(data.get('path'))
+    if netstore.is_net(rel):
+        return jsonify({'error': '网盘文件请在 OpenList 中管理'}), 400
     src = safe_resolve(rel)
     if not src.is_file():
         abort(404)
