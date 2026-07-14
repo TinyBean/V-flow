@@ -262,7 +262,7 @@
         <label class="autonext" title="看完自动播放同文件夹下一个">
           <input type="checkbox" id="autoNext">
           <span class="autonext__track"><span class="autonext__thumb"></span></span>
-          <span class="autonext__label">自动下一页</span>
+          <span class="autonext__label">自动下一个</span>
         </label>
         <button class="btn btn--primary" id="related" aria-label="相关视频">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
@@ -488,7 +488,7 @@
       if (!list || !list.length) return '';
       const items = list.map(v => `
         <a class="rel" href="/play/${encodeURI(v.path)}">
-          <img class="rel__thumb" src="/api/thumb/${encodeURI(v.path)}" loading="lazy" alt="">
+          <img class="rel__thumb" src="/api/thumb/${encodeURI(v.path)}" loading="lazy" alt="" onerror="this.remove()">
           <span class="rel__name">${escapeHtml(v.name)}</span>
         </a>`).join('');
       return `<div class="drawer__sec">${title} · ${list.length}</div>${items}`;
